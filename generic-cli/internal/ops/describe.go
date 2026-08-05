@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+
 // reloadTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
 // and returns 0, so a Target created but not yet configured deploys cleanly and
