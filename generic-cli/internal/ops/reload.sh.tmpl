@@ -1,0 +1,6 @@
+# easySSL wrote this deployment's material to temporary files and named them here.
+# They are deleted when this script ends. Copy what your service reads, then reload it.
+echo "certificate: $EASYSSL_CERT_PATH"
+echo "chain:       $EASYSSL_CHAIN_PATH"
+echo "fullchain:   $EASYSSL_FULLCHAIN_PATH"
+echo "key:         $EASYSSL_KEY_PATH"
