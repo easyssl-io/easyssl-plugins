@@ -1,1 +1,10 @@
 dist/
+
+# `go build .` from a plugin's directory leaves the compiled binary there,
+# named after the module, which is how a 2.5 MB one was committed once.
+# (`go build ./...` discards it, so only the bare form does this.) Build
+# output, not source: `make build-plugins` in the umbrella writes the artifacts
+# that matter to dist/ instead, cross-compiled and with their digests printed.
+# One line per plugin, there being no glob for "a file named like its own
+# directory".
+/generic-cli/generic-cli

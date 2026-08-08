@@ -5,9 +5,15 @@ plugins are and how they build; this file is what a change to one must respect.
 
 ## Build
 
+Each plugin is a separate module, so build inside the one you changed:
+
 ```bash
-go build ./... && go test ./... && go vet ./...
+cd generic-cli && go build ./... && go test ./... && go vet ./...
 ```
+
+Do not add a module at the repository root, and do not merge two plugins into
+one module. The split is what keeps a browser-automation plugin's dependencies
+out of a minimal plugin's graph.
 
 ## What a plugin is
 
