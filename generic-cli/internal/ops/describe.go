@@ -51,10 +51,12 @@ func Describe() DescribeResponse {
 		Settings: []SettingDeclaration{{
 			Key:   "reload",
 			Label: "Reload command",
-			Description: "The installation itself. The Client sends this Plugin the Certificate, " +
-				"the chain and the key as text; the Plugin writes them to temporary files, names " +
-				"them in this script's environment, and deletes them when the script ends. Copying " +
-				"what the service reads and reloading it is this script's job.",
+			Description: "The command that installs a new Certificate on this Target and reloads " +
+				"the service that uses it. Before running it, easySSL writes the Certificate, chain, " +
+				"fullchain and private key to temporary files and passes their paths in the " +
+				"environment (as the default shows), removing them once it returns; copying whichever " +
+				"of them the service reads to where it expects them, and reloading it, is this " +
+				"command's job.",
 			Type: SettingTypeCommand,
 			// Required with a default that runs: the command is the whole of
 			// the installation, since this Plugin writes nothing of its own, so
