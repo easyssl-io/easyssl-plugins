@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-
 // reloadTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
 // and returns 0, so a Target created but not yet configured deploys cleanly and
@@ -48,6 +47,11 @@ func Describe() DescribeResponse {
 		ContractVersion: ContractVersion,
 		Name:            Name,
 		Version:         Version(),
+		Description: "Installs a Certificate on a host by running a command you write. " +
+			"It knows nothing about any particular service: whatever can be done from a " +
+			"shell on that host, such as copying files into place, reloading a daemon, or " +
+			"calling another tool, this Plugin can do. A service that has a Plugin of its " +
+			"own is better served by that one.",
 		Settings: []SettingDeclaration{{
 			Key:   "reload",
 			Label: "Reload command",
