@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-
 // reloadTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
 // and returns 0, so a Target created but not yet configured deploys cleanly and
@@ -48,13 +47,20 @@ func Describe() DescribeResponse {
 		ContractVersion: ContractVersion,
 		Name:            Name,
 		Version:         Version(),
+		Description: "Installs a Certificate on a host by running a command you write. " +
+			"It knows nothing about any particular service: whatever can be done from a " +
+			"shell on that host, such as copying files into place, reloading a daemon, or " +
+			"calling another tool, this Plugin can do. A service that has a Plugin of its " +
+			"own is better served by that one.",
 		Settings: []SettingDeclaration{{
 			Key:   "reload",
 			Label: "Reload command",
-			Description: "The installation itself. The Client sends this Plugin the Certificate, " +
-				"the chain and the key as text; the Plugin writes them to temporary files, names " +
-				"them in this script's environment, and deletes them when the script ends. Copying " +
-				"what the service reads and reloading it is this script's job.",
+			Description: "The command that installs a new Certificate on this Target and reloads " +
+				"the service that uses it. Before running it, easySSL writes the Certificate, chain, " +
+				"fullchain and private key to temporary files and passes their paths in the " +
+				"environment (as the default shows), removing them once it returns; copying whichever " +
+				"of them the service reads to where it expects them, and reloading it, is this " +
+				"command's job.",
 			Type: SettingTypeCommand,
 			// Required with a default that runs: the command is the whole of
 			// the installation, since this Plugin writes nothing of its own, so
