@@ -4,7 +4,7 @@
 // configuration and knows nothing about any particular server software, which
 // is what makes it the one plugin that works with anything a shell can reload.
 //
-// It builds to a standalone executable that a Client fetches and then drives
+// It builds to a standalone executable that an Agent fetches and then drives
 // over stdio: the operation name is the single argv argument, the JSON request
 // rides stdin and the JSON response rides stdout. Nothing sensitive is ever on
 // argv or in this process's own environment, because /proc/<pid>/cmdline is
@@ -30,7 +30,7 @@ const maxRequest = 1 << 20
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
-		// stderr is this Plugin's own diagnostics, which the Client logs and
+		// stderr is this Plugin's own diagnostics, which the Agent logs and
 		// never parses; the non-zero exit is what tells it the operation
 		// produced no response.
 		fmt.Fprintf(os.Stderr, "%s: %v\n", ops.Name, err)
@@ -56,7 +56,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// non-zero exit is this Plugin failing, which is a different fact.
 		return writeJSON(stdout, ops.Install(context.Background(), req))
 	default:
-		// An operation this build does not implement. The Client treats the
+		// An operation this build does not implement. The Agent treats the
 		// non-zero exit here as the operation being unsupported.
 		return fmt.Errorf("unknown operation %q", args[0])
 	}

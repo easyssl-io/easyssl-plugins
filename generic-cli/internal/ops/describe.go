@@ -39,7 +39,7 @@ func Version() string {
 }
 
 // Describe answers OpDescribe. The declaration is FR-002d's, and it is the
-// only place generic-cli's settings are defined: the Client reports this
+// only place generic-cli's settings are defined: the Agent reports this
 // verbatim at install time and the Server resolves every value against it, so
 // nothing here is repeated Server-side.
 func Describe() DescribeResponse {

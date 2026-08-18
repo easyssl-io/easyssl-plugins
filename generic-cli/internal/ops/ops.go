@@ -2,7 +2,7 @@
 // It holds everything the binary does; main.go is only the stdio framing.
 //
 // The request and response shapes come from the shared plugincontract package
-// rather than being redeclared here: the Client compiles against that same
+// rather than being redeclared here: the Agent compiles against that same
 // definition, so a field added on one side cannot be silently ignored on the
 // other. That is worth a dependency, and it costs the plugin nothing it cares
 // about, the contract module being first-party and standard library only.
@@ -13,7 +13,7 @@ import "github.com/easyssl-io/easyssl-contract/plugincontract"
 // The contract this build speaks, and the identity it answers with. Aliased
 // into this package so nothing below has to name plugincontract twice.
 const (
-	// ContractVersion is the Client↔Plugin contract version. Additive fields
+	// ContractVersion is the Agent↔Plugin contract version. Additive fields
 	// bump MINOR, and a newer MINOR than this one is read by ignoring the
 	// fields it does not know.
 	ContractVersion = plugincontract.ContractVersion
@@ -32,7 +32,7 @@ const (
 )
 
 // The wire shapes, aliased so this package's own signatures read in its terms
-// while remaining the very types the Client decodes into.
+// while remaining the very types the Agent decodes into.
 type (
 	// SettingDeclaration is one setting a Plugin declares about itself.
 	SettingDeclaration = plugincontract.SettingDeclaration

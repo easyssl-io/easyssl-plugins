@@ -33,7 +33,7 @@ const (
 // reload command with the four paths in its environment, and removes those
 // files whatever happened — including when the command fails, which is the case
 // that matters: a failed install must not leave a private key on disk. The
-// Client removes the whole working directory after every run, which is what
+// Agent removes the whole working directory after every run, which is what
 // also cleans up a run it had to kill; this cleanup is the Plugin doing its own
 // half rather than relying on that.
 //
@@ -104,7 +104,7 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	return InstallResponse{ContractVersion: ContractVersion, OK: true, Output: out.String()}
 }
 
-// workDir resolves where this run writes. The Client supplies one it will
+// workDir resolves where this run writes. The Agent supplies one it will
 // remove afterwards; when nothing was supplied — running the binary by hand —
 // one is created here and removed by the returned function, so the Plugin is
 // usable on its own without ever leaving key material behind.
