@@ -11,7 +11,7 @@ import (
 	"github.com/easyssl-io/easyssl-plugins/generic-cli/internal/ops"
 )
 
-// The Client↔Plugin stdio contract test. It exercises the properties the
+// The Agent↔Plugin stdio contract test. It exercises the properties the
 // contract rests on rather than every branch: what describe declares, that
 // install really writes the four files at the right modes and really removes
 // them however the command ends, that the four paths reach the command's
@@ -120,7 +120,7 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
 		t.Fatalf("key mode during the run = %q, want -rw------- (0600)", mode)
 	}
 
-	// And nothing survives the run. The Client removes the whole working
+	// And nothing survives the run. The Agent removes the whole working
 	// directory too, but the Plugin doing its own half is what this asserts.
 	for _, name := range []string{"cert.pem", "chain.pem", "fullchain.pem", "key.pem"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
@@ -131,7 +131,7 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
 
 // A failed command is a failed Deployment, not a failed Plugin: install
 // returns ok:false with everything the command printed, and the process still
-// exits 0, which is what the Client distinguishes.
+// exits 0, which is what the Agent distinguishes.
 func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
@@ -234,7 +234,7 @@ func request(workDir, command string) ops.InstallRequest {
 }
 
 // requirePOSIXShell skips where /bin/sh is not the contract's shell. The
-// Plugin runs on the hosts a Client runs on, which are POSIX; this keeps the
+// Plugin runs on the hosts an Agent runs on, which are POSIX; this keeps the
 // suite honest about that rather than silently passing elsewhere.
 func requirePOSIXShell(t *testing.T) {
 	t.Helper()

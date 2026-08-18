@@ -1,13 +1,13 @@
 # easyssl-plugins
 
 First-party plugins for easySSL. Each plugin is a standalone executable that an
-easySSL Client fetches on demand, verifies against a published content digest
+easySSL Agent fetches on demand, verifies against a published content digest
 before running, and then drives over stdio.
 
-Nothing here is linked into the Client binary. A Client ships with no plugins at
+Nothing here is linked into the Agent binary. An Agent ships with no plugins at
 all and gains one only when somebody installs it, which keeps the base install
 small enough for constrained hosts and lets this catalog grow without ever
-touching the Client.
+touching the Agent.
 
 ## Plugins
 
@@ -36,8 +36,8 @@ second plugin needs it, so sharing costs no cross-repository pin.
 
 ## Why this is open source
 
-Everything that runs on an easySSL Client is open source, because a plugin reads
+Everything that runs on an easySSL Agent is open source, because a plugin reads
 and writes private key material and restarts services on someone else's host.
-Anyone running a Client should be able to read every line that touches their
+Anyone running an Agent should be able to read every line that touches their
 keys, and to rebuild an artifact and check it against the digest the catalog
 publishes. That rule covers this repository.
