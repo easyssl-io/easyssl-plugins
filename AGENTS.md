@@ -38,6 +38,9 @@ things follow, and both are easy to break by accident:
   and a Deployment marked succeeded with nothing installed is the one outcome
   a plugin must never produce. A line allowed to fail says so with `|| true`;
   a script that wants last-line semantics says `set +e` on its first line.
+  The limit is POSIX's: `-e` does not act on a failure on the left of `&&`
+  or `||`, or inside a pipeline, so a command that must fail goes on its own
+  line, and everything that promises fail-fast says so.
 
 ## Dependencies
 

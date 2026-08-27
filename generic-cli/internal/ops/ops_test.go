@@ -179,6 +179,27 @@ func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 	}
 }
 
+// POSIX -e does not act on a failure on the left of && or ||, so this script
+// exits 0 although cp failed and nothing was reloaded. This test records the
+// limit that the description and the template state, so that a change to the
+// invocation that closes it has a test to turn around, and a change that
+// widens it is noticed.
+func TestInstallCannotSeeAFailureOnTheLeftOfAnAndOrList(t *testing.T) {
+	requirePOSIXShell(t)
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), request(dir,
+		"cp /dont/exist "+filepath.Join(dir, "x")+" && echo reloaded; echo done"))
+	if !res.OK {
+		t.Fatalf("POSIX -e ended the script on the left of &&, which the description says it does not: %s", res.Output)
+	}
+	if strings.Contains(res.Output, "reloaded") {
+		t.Fatalf("the right side of && ran after its left failed: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "done") {
+		t.Fatalf("the line after the list did not run: %s", res.Output)
+	}
+}
+
 // The opt-out is in the script's own text, where the next reader sees it: a
 // script that wants last-line semantics says `set +e` on its first line.
 func TestInstallLetsAScriptOptOutOfFailingFast(t *testing.T) {

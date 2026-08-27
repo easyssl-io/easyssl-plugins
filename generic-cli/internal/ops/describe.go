@@ -67,9 +67,12 @@ func Describe() DescribeResponse {
 				"temporary files and passes their paths in the environment, deleting them once the " +
 				"command returns. Copying whichever of them the service reads to where it expects " +
 				"them, and reloading it, is this command's job.\n\n" +
-				"It runs as one `/bin/sh -e` script: the first line that fails ends it and fails " +
-				"the Deployment, so a failure cannot hide behind a later line that exits 0. Append " +
-				"`|| true` to a line that is allowed to fail.\n\n" +
+				"It runs as one `/bin/sh -e` script: a line that fails ends it and fails the " +
+				"Deployment, so a failure cannot hide behind a later line that exits 0. Append " +
+				"`|| true` to a line that is allowed to fail. A command that must fail the " +
+				"Deployment goes on a line of its own: `-e` does not act on a failure on the left " +
+				"of `&&` or `||`, or inside a pipeline, so `cp a b && reload; echo done` exits 0 " +
+				"when `cp` fails.\n\n" +
 				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is " +
 				"what most servers read.\n" +
 				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n" +

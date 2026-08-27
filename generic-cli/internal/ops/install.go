@@ -90,7 +90,11 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	// script, so it holds whatever the operator wrote and however they edit it;
 	// a line that is allowed to fail says so with `|| true`, and `set +e` on
 	// the first line opts out for a script that wants last-line semantics.
-	// POSIX -e only: pipefail is not in every /bin/sh.
+	// POSIX -e only: pipefail is not in every /bin/sh. And POSIX -e acts on a
+	// line's own status: a failure on the left of && or ||, or inside a
+	// pipeline, does not end the script, so `cp a b && reload; echo done`
+	// exits 0 when cp fails. The description and the template say so, and
+	// the test for it records the limit rather than pretending -e has none.
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
