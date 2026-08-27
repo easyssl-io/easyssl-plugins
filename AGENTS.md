@@ -32,6 +32,12 @@ things follow, and both are easy to break by accident:
   It writes private keys and restarts services. Treat every input as
   attacker-influenced: paths arrive from users and from parsed host
   configuration, and reload commands are user-supplied strings.
+- **A command a plugin runs for the user fails on its first failing line.**
+  `generic-cli` runs the reload command under `/bin/sh -e`, because a script's
+  own exit status is only its last line's: `ls /missing; echo done` exits 0,
+  and a Deployment marked succeeded with nothing installed is the one outcome
+  a plugin must never produce. A line allowed to fail says so with `|| true`;
+  a script that wants last-line semantics says `set +e` on its first line.
 
 ## Dependencies
 
