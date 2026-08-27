@@ -1,5 +1,7 @@
 # easySSL wrote this deployment's material to temporary files and named them here.
 # They are deleted when this script ends. Copy what your service reads, then reload it.
+# This runs with set -e: the first line that fails ends the script and fails the
+# Deployment. Append `|| true` to a line that is allowed to fail.
 echo "certificate: $EASYSSL_CERT_PATH"
 echo "chain:       $EASYSSL_CHAIN_PATH"
 echo "fullchain:   $EASYSSL_FULLCHAIN_PATH"
