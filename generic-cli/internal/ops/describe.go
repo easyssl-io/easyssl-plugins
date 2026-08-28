@@ -19,7 +19,7 @@ var reloadTemplate string
 // of its own, which is every build made straight from a checkout rather than
 // through the module proxy. The catalog and the digest are what actually
 // identify an artifact (FR-008a); this is the human-readable label beside them.
-const fallbackVersion = "0.1.0"
+const fallbackVersion = "0.0.1"
 
 // Version reports this build's version: the module version stamped into the
 // binary when there is one, else fallbackVersion. Read through build info
