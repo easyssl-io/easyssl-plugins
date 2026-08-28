@@ -78,8 +78,24 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	// /bin/sh -c, so the command may be a multi-line script and use anything a
 	// shell offers. The script is on the shell's argv, which is the operator's
 	// own text; the key never is, being in a file whose path is passed through
-	// the environment (FR-002e).
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+	// the environment.
+	//
+	// -e, because a script's exit status is its last line's and nothing else's.
+	// `ls /missing; echo done` exits 0, and this Plugin reported it as a
+	// success while the copy that mattered had failed two lines up, which is
+	// the one outcome a deployment step must not produce: a Target marked
+	// healthy with nothing installed. With -e the first failing line ends the
+	// script and the Deployment fails with that line as the last thing in its
+	// output. It is the shell's own flag rather than a line prepended to the
+	// script, so it holds whatever the operator wrote and however they edit it;
+	// a line that is allowed to fail says so with `|| true`, and `set +e` on
+	// the first line opts out for a script that wants last-line semantics.
+	// POSIX -e only: pipefail is not in every /bin/sh. And POSIX -e acts on a
+	// line's own status: a failure on the left of && or ||, or inside a
+	// pipeline, does not end the script, so `cp a b && reload; echo done`
+	// exits 0 when cp fails. The description and the template say so, and
+	// the test for it records the limit rather than pretending -e has none.
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
 		"EASYSSL_CERT_PATH="+paths[certFile],

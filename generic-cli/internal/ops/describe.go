@@ -59,16 +59,25 @@ func Describe() DescribeResponse {
 			// group: they are what the command is written against, and a
 			// reader has to know which file holds what before they can write
 			// one. The console renders the newlines.
+			// Written in the Markdown subset the contract allows for a description:
+			// backticks around anything a reader would type or look for, so the
+			// console sets it as code rather than running it into the sentence.
 			Description: "The command that installs a new Certificate on this Target and reloads " +
 				"the service that uses it. Before running it, easySSL writes the material to " +
 				"temporary files and passes their paths in the environment, deleting them once the " +
 				"command returns. Copying whichever of them the service reads to where it expects " +
 				"them, and reloading it, is this command's job.\n\n" +
-				"EASYSSL_FULLCHAIN_PATH — the Certificate followed by the issuer chain, which is " +
+				"It runs as one `/bin/sh -e` script: a line that fails ends it and fails the " +
+				"Deployment, so a failure cannot hide behind a later line that exits 0. Append " +
+				"`|| true` to a line that is allowed to fail. A command that must fail the " +
+				"Deployment goes on a line of its own: `-e` does not act on a failure on the left " +
+				"of `&&` or `||`, or inside a pipeline, so `cp a b && reload; echo done` exits 0 " +
+				"when `cp` fails.\n\n" +
+				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is " +
 				"what most servers read.\n" +
-				"EASYSSL_CERT_PATH — the Certificate alone, without the chain.\n" +
-				"EASYSSL_CHAIN_PATH — the issuer chain alone, without the Certificate.\n" +
-				"EASYSSL_KEY_PATH — the private key. It is the only one written 0600, and it exists " +
+				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n" +
+				"`EASYSSL_CHAIN_PATH`: the issuer chain alone, without the Certificate.\n" +
+				"`EASYSSL_KEY_PATH`: the private key. It is the only one written 0600, and it exists " +
 				"only while the command runs.",
 			Type: SettingTypeCommand,
 			// Required with a default that runs: the command is the whole of

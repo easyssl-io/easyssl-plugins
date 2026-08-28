@@ -158,6 +158,63 @@ func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 	}
 }
 
+// A script's exit status is its last line's, so without -e this script exits 0
+// and the failed ls two lines up is invisible: a Deployment marked succeeded
+// with nothing installed, which is the one outcome this Plugin must not
+// produce. The reload runs under /bin/sh -e precisely so this reports failure.
+func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
+	requirePOSIXShell(t)
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), request(dir,
+		"ls /dont/exist\necho success"))
+	if res.OK {
+		t.Fatalf("a script whose second line exits 0 hid its first line's failure: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "install failed: the reload command exited") {
+		t.Fatalf("output does not say the command failed: %s", res.Output)
+	}
+	// -e ends the script at the failing line, so what follows it never ran.
+	if strings.Contains(res.Output, "success") {
+		t.Fatalf("the line after the failure still ran: %s", res.Output)
+	}
+}
+
+// POSIX -e does not act on a failure on the left of && or ||, so this script
+// exits 0 although cp failed and nothing was reloaded. This test records the
+// limit that the description and the template state, so that a change to the
+// invocation that closes it has a test to turn around, and a change that
+// widens it is noticed.
+func TestInstallCannotSeeAFailureOnTheLeftOfAnAndOrList(t *testing.T) {
+	requirePOSIXShell(t)
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), request(dir,
+		"cp /dont/exist "+filepath.Join(dir, "x")+" && echo reloaded; echo done"))
+	if !res.OK {
+		t.Fatalf("POSIX -e ended the script on the left of &&, which the description says it does not: %s", res.Output)
+	}
+	if strings.Contains(res.Output, "reloaded") {
+		t.Fatalf("the right side of && ran after its left failed: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "done") {
+		t.Fatalf("the line after the list did not run: %s", res.Output)
+	}
+}
+
+// The opt-out is in the script's own text, where the next reader sees it: a
+// script that wants last-line semantics says `set +e` on its first line.
+func TestInstallLetsAScriptOptOutOfFailingFast(t *testing.T) {
+	requirePOSIXShell(t)
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), request(dir,
+		"set +e\nls /dont/exist\necho carried on"))
+	if !res.OK {
+		t.Fatalf("set +e did not restore last-line semantics: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "carried on") {
+		t.Fatalf("the line after the tolerated failure did not run: %s", res.Output)
+	}
+}
+
 // FR-002e: /proc/<pid>/cmdline is world-readable, so no key material may ever
 // be on a command line. The key reaches the command as a path in its
 // environment and nowhere else.
