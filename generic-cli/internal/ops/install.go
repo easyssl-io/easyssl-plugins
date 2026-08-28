@@ -27,7 +27,7 @@ const (
 	materialMode os.FileMode = 0o644
 )
 
-// Install performs one certificate installation (FR-001, FR-002).
+// Install performs one Certificate installation.
 //
 // It writes the material to files inside the run's working directory, runs the
 // reload command with the four paths in its environment, and removes those
@@ -39,7 +39,7 @@ const (
 //
 // The returned response always describes the attempt: OK is the command's
 // exit 0, and Output is one text carrying what the command printed, because the
-// command ran inside this Plugin and only this answer crosses back (FR-013).
+// command ran inside this Plugin and only this answer crosses back.
 func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	var out strings.Builder
 	fmt.Fprintf(&out, "%s %s · install\n", Name, Version())

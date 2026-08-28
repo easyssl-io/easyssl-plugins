@@ -18,7 +18,7 @@ var reloadTemplate string
 // fallbackVersion is what this build reports when it carries no module version
 // of its own, which is every build made straight from a checkout rather than
 // through the module proxy. The catalog and the digest are what actually
-// identify an artifact (FR-008a); this is the human-readable label beside them.
+// identify an artifact; this is the human-readable label beside them.
 const fallbackVersion = "0.0.1"
 
 // Version reports this build's version: the module version stamped into the
@@ -38,8 +38,8 @@ func Version() string {
 	return v
 }
 
-// Describe answers OpDescribe. The declaration is FR-002d's, and it is the
-// only place generic-cli's settings are defined: the Agent reports this
+// Describe answers OpDescribe. This declaration is the only place generic-cli's
+// settings are defined: the Agent reports it
 // verbatim at install time and the Server resolves every value against it, so
 // nothing here is repeated Server-side.
 func Describe() DescribeResponse {

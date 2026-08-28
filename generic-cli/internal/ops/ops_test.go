@@ -215,8 +215,8 @@ func TestInstallLetsAScriptOptOutOfFailingFast(t *testing.T) {
 	}
 }
 
-// FR-002e: /proc/<pid>/cmdline is world-readable, so no key material may ever
-// be on a command line. The key reaches the command as a path in its
+// /proc/<pid>/cmdline is world-readable, so no key material may ever be on a
+// command line. The key reaches the command as a path in its
 // environment and nowhere else.
 func TestNoKeyMaterialOnAnyCommandLine(t *testing.T) {
 	requirePOSIXShell(t)
