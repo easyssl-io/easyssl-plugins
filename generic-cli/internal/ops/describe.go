@@ -18,7 +18,9 @@ var reloadTemplate string
 // fallbackVersion is what this build reports when it carries no module version
 // of its own, which is every build made straight from a checkout rather than
 // through the module proxy. The catalog and the digest are what actually
-// identify an artifact; this is the human-readable label beside them.
+// identify an artifact; this is the human-readable label beside them. A
+// distribution catalog publishing this checkout must use the same fallback
+// version, and both values move together.
 const fallbackVersion = "0.0.1"
 
 // Version reports this build's version: the module version stamped into the
