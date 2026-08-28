@@ -13,10 +13,10 @@ import (
 // File names written into the run's working directory. Fullchain is the
 // certificate followed by the chain, which is what most servers actually read.
 const (
-	certFile      = "cert.pem"
-	chainFile     = "chain.pem"
-	fullchainFile = "fullchain.pem"
-	keyFile       = "key.pem"
+	certificateFile = "cert.pem"
+	chainFile       = "chain.pem"
+	fullchainFile   = "fullchain.pem"
+	keyFile         = "key.pem"
 )
 
 // keyMode is the private key's mode. The other three are public material and
@@ -98,7 +98,7 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"EASYSSL_CERT_PATH="+paths[certFile],
+		"EASYSSL_CERT_PATH="+paths[certificateFile],
 		"EASYSSL_CHAIN_PATH="+paths[chainFile],
 		"EASYSSL_FULLCHAIN_PATH="+paths[fullchainFile],
 		"EASYSSL_KEY_PATH="+paths[keyFile],
@@ -143,17 +143,17 @@ func workDir(supplied string) (string, func(), error) {
 // remove a partial set.
 func writeMaterial(dir string, req InstallRequest) (map[string]string, error) {
 	paths := map[string]string{
-		certFile:      filepath.Join(dir, certFile),
-		chainFile:     filepath.Join(dir, chainFile),
-		fullchainFile: filepath.Join(dir, fullchainFile),
-		keyFile:       filepath.Join(dir, keyFile),
+		certificateFile: filepath.Join(dir, certificateFile),
+		chainFile:       filepath.Join(dir, chainFile),
+		fullchainFile:   filepath.Join(dir, fullchainFile),
+		keyFile:         filepath.Join(dir, keyFile),
 	}
 	files := []struct {
 		name    string
 		content string
 		mode    os.FileMode
 	}{
-		{certFile, req.CertificatePem, materialMode},
+		{certificateFile, req.CertificatePem, materialMode},
 		{chainFile, req.ChainPem, materialMode},
 		{fullchainFile, joinPEM(req.CertificatePem, req.ChainPem), materialMode},
 		{keyFile, req.PrivateKeyPem, keyMode},
@@ -171,13 +171,13 @@ func writeMaterial(dir string, req InstallRequest) (map[string]string, error) {
 
 // joinPEM concatenates the certificate and its chain with exactly one newline
 // between them, whatever trailing newlines each carried.
-func joinPEM(cert, chain string) string {
-	cert = strings.TrimRight(cert, "\n")
+func joinPEM(certificate, chain string) string {
+	certificate = strings.TrimRight(certificate, "\n")
 	chain = strings.TrimLeft(strings.TrimRight(chain, "\n"), "\n")
 	if chain == "" {
-		return cert + "\n"
+		return certificate + "\n"
 	}
-	return cert + "\n" + chain + "\n"
+	return certificate + "\n" + chain + "\n"
 }
 
 func removeAll(paths map[string]string) {

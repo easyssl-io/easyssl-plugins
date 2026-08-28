@@ -58,10 +58,10 @@ func Describe() DescribeResponse {
 			// The variables are named one per line rather than described as a
 			// group: they are what the command is written against, and a
 			// reader has to know which file holds what before they can write
-			// one. The console renders the newlines.
+			// one. The web console renders the newlines.
 			// Written in the Markdown subset the contract allows for a description:
 			// backticks around anything a reader would type or look for, so the
-			// console sets it as code rather than running it into the sentence.
+			// web console sets it as code rather than running it into the sentence.
 			Description: "The command that installs a new Certificate on this Target and reloads " +
 				"the service that uses it. Before running it, easySSL writes the material to " +
 				"temporary files and passes their paths in the environment, deleting them once the " +
