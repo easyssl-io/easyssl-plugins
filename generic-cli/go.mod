@@ -2,7 +2,7 @@ module github.com/easyssl-io/easyssl-plugins/generic-cli
 
 go 1.26.6
 
-require github.com/easyssl-io/easyssl-contract v0.2.0
+require github.com/easyssl-io/easyssl-contract v0.0.1
 
 // Umbrella-dev resolution for the unpublished contract module, the same
 // arrangement agent/go.mod uses. The plugin declares what it needs here

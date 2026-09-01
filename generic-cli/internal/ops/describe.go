@@ -18,8 +18,10 @@ var reloadTemplate string
 // fallbackVersion is what this build reports when it carries no module version
 // of its own, which is every build made straight from a checkout rather than
 // through the module proxy. The catalog and the digest are what actually
-// identify an artifact (FR-008a); this is the human-readable label beside them.
-const fallbackVersion = "0.1.0"
+// identify an artifact; this is the human-readable label beside them. A
+// distribution catalog publishing this checkout must use the same fallback
+// version, and both values move together.
+const fallbackVersion = "0.0.1"
 
 // Version reports this build's version: the module version stamped into the
 // binary when there is one, else fallbackVersion. Read through build info
@@ -38,8 +40,8 @@ func Version() string {
 	return v
 }
 
-// Describe answers OpDescribe. The declaration is FR-002d's, and it is the
-// only place generic-cli's settings are defined: the Agent reports this
+// Describe answers OpDescribe. This declaration is the only place generic-cli's
+// settings are defined: the Agent reports it
 // verbatim at install time and the Server resolves every value against it, so
 // nothing here is repeated Server-side.
 func Describe() DescribeResponse {
@@ -58,10 +60,10 @@ func Describe() DescribeResponse {
 			// The variables are named one per line rather than described as a
 			// group: they are what the command is written against, and a
 			// reader has to know which file holds what before they can write
-			// one. The console renders the newlines.
+			// one. The web console renders the newlines.
 			// Written in the Markdown subset the contract allows for a description:
 			// backticks around anything a reader would type or look for, so the
-			// console sets it as code rather than running it into the sentence.
+			// web console sets it as code rather than running it into the sentence.
 			Description: "The command that installs a new Certificate on this Target and reloads " +
 				"the service that uses it. Before running it, easySSL writes the material to " +
 				"temporary files and passes their paths in the environment, deleting them once the " +
@@ -73,6 +75,10 @@ func Describe() DescribeResponse {
 				"Deployment goes on a line of its own: `-e` does not act on a failure on the left " +
 				"of `&&` or `||`, or inside a pipeline, so `cp a b && reload; echo done` exits 0 " +
 				"when `cp` fails.\n\n" +
+				"It runs inside the Agent service's private `/tmp`: a file this command writes " +
+				"there is invisible to every other process on the host, and one another process " +
+				"put in `/tmp` is invisible here. Hand a file to another daemon somewhere " +
+				"else.\n\n" +
 				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is " +
 				"what most servers read.\n" +
 				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n" +
