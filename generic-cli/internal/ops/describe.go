@@ -75,6 +75,10 @@ func Describe() DescribeResponse {
 				"Deployment goes on a line of its own: `-e` does not act on a failure on the left " +
 				"of `&&` or `||`, or inside a pipeline, so `cp a b && reload; echo done` exits 0 " +
 				"when `cp` fails.\n\n" +
+				"It runs inside the Agent service's private `/tmp`: a file this command writes " +
+				"there is invisible to every other process on the host, and one another process " +
+				"put in `/tmp` is invisible here. Hand a file to another daemon somewhere " +
+				"else.\n\n" +
 				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is " +
 				"what most servers read.\n" +
 				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n" +
