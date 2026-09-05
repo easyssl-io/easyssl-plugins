@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // File names written into the run's working directory. Fullchain is the
@@ -103,15 +105,29 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 		"EASYSSL_FULLCHAIN_PATH="+paths[fullchainFile],
 		"EASYSSL_KEY_PATH="+paths[keyFile],
 	)
-	// Combined, because a reload command's diagnostics are as much of the
-	// record as its output and splitting them loses the order they happened in.
-	combined, runErr := cmd.CombinedOutput()
-	if len(combined) > 0 {
-		out.Write(combined)
-		if combined[len(combined)-1] != '\n' {
-			out.WriteByte('\n')
-		}
-	}
+	// Both streams, labeled per line, into one buffer. Labeling them matters
+	// because everything from here on is the operator's own command speaking
+	// rather than this Plugin, and a warning written to stderr by a command
+	// that succeeded reads as a failure otherwise.
+	//
+	// The cost is exact interleaving. CombinedOutput gave both file descriptors
+	// one pipe, so the kernel ordered them and nothing could say which was
+	// which; two pipes can be labeled and are drained by a goroutine each, so
+	// the order between the streams is whatever those two are scheduled in.
+	// Within a stream it is exact. That is the trade, and labels are worth more
+	// than a interleaving that was only ever right for output slow enough to be
+	// read anyway.
+	//
+	// One mutex because those goroutines share this buffer.
+	var mu sync.Mutex
+	stdout := &prefixWriter{to: &out, mu: &mu, label: "stdout"}
+	stderr := &prefixWriter{to: &out, mu: &mu, label: "stderr"}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	runErr := cmd.Run()
+	// A command killed mid-line, or one that never ended its last line, still
+	// wrote something worth reading.
+	stdout.flush()
+	stderr.flush()
 	if runErr != nil {
 		fmt.Fprintf(&out, "install failed: the reload command %s\n", describeExit(runErr))
 		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
@@ -194,4 +210,48 @@ func describeExit(err error) string {
 		return fmt.Sprintf("exited %d", exitErr.ExitCode())
 	}
 	return fmt.Sprintf("could not be run: %v", err)
+}
+
+// prefixWriter labels each line of a stream as it arrives and writes it to a
+// buffer shared with the other stream, so the transcript keeps the order the
+// two happened in while still saying which is which.
+//
+// Line-buffered rather than per-write: a program writing "certif" and then
+// "icate\n" produces two writes and one line, and prefixing each write would
+// split it. Whatever is left without a newline is flushed by the caller when
+// the command ends.
+type prefixWriter struct {
+	to      *strings.Builder
+	mu      *sync.Mutex // shared with the other stream: one buffer, two goroutines
+	label   string
+	partial []byte
+}
+
+func (w *prefixWriter) Write(p []byte) (int, error) {
+	w.partial = append(w.partial, p...)
+	for {
+		i := bytes.IndexByte(w.partial, '\n')
+		if i < 0 {
+			return len(p), nil
+		}
+		w.line(w.partial[:i])
+		w.partial = w.partial[i+1:]
+	}
+}
+
+// flush emits a trailing line that never got its newline.
+func (w *prefixWriter) flush() {
+	if len(w.partial) > 0 {
+		w.line(w.partial)
+		w.partial = nil
+	}
+}
+
+func (w *prefixWriter) line(b []byte) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	// Two spaces in, the label, two spaces out. Both labels are six characters
+	// so the command's own output stays column-aligned, which is most of what
+	// makes a transcript readable.
+	fmt.Fprintf(w.to, "  %s  %s\n", w.label, b)
 }

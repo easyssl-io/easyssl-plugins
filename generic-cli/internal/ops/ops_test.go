@@ -335,3 +335,52 @@ func readDuring(record, key string) string {
 	}
 	return rest
 }
+
+// Everything after "running the reload command" is the operator's own command
+// speaking rather than this Plugin, and the labels are what say so. Without
+// them a warning written to stderr by a command that succeeded reads as a
+// failure, which is the case this exists for.
+func TestInstallLabelsEachReloadStream(t *testing.T) {
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), ops.InstallRequest{
+		ContractVersion: ops.ContractVersion,
+		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
+		Settings: map[string]string{"reload": "echo out-line\necho err-line >&2\n"},
+	})
+	if !res.OK {
+		t.Fatalf("a reload that exits 0 failed: %s", res.Output)
+	}
+	for _, want := range []string{"  stdout  out-line", "  stderr  err-line"} {
+		if !strings.Contains(res.Output, want) {
+			t.Fatalf("the transcript does not label its streams, wanted %q:\n%s", want, res.Output)
+		}
+	}
+}
+
+// A command killed mid-line, or one that simply never ended its last line,
+// still wrote something worth reading; the line buffer must not swallow it.
+func TestInstallKeepsALineWithNoNewline(t *testing.T) {
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), ops.InstallRequest{
+		ContractVersion: ops.ContractVersion,
+		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
+		Settings: map[string]string{"reload": "printf 'no trailing newline'\n"},
+	})
+	if !strings.Contains(res.Output, "  stdout  no trailing newline") {
+		t.Fatalf("a final line without a newline was dropped:\n%s", res.Output)
+	}
+}
+
+// One line, however many writes it took: a program writing "certif" then
+// "icate\n" is one line and must not be labeled twice.
+func TestInstallLabelsPerLineNotPerWrite(t *testing.T) {
+	dir := t.TempDir()
+	res := ops.Install(context.Background(), ops.InstallRequest{
+		ContractVersion: ops.ContractVersion,
+		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
+		Settings: map[string]string{"reload": "printf 'certif'; sleep 0.1; printf 'icate\\n'\n"},
+	})
+	if !strings.Contains(res.Output, "  stdout  certificate") {
+		t.Fatalf("a line split across writes was labeled twice:\n%s", res.Output)
+	}
+}
