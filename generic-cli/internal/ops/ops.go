@@ -1,4 +1,4 @@
-// Package ops implements generic-cli's two operations, describe and install.
+// Package ops implements generic-cli's two operations, describe and deploy.
 // It holds everything the binary does; main.go is only the stdio framing.
 //
 // The request and response shapes come from the shared plugincontract package
@@ -21,14 +21,32 @@ const (
 	// it under. It is identity: a Target's settings are stored against it.
 	Name = "generic-cli"
 
-	// OpDescribe and OpInstall are the operation names, each passed as the
+	// OpDescribe and OpDeploy are the operation names, each passed as the
 	// binary's single argv argument.
 	OpDescribe = plugincontract.OpDescribe
-	OpInstall  = plugincontract.OpInstall
+	OpDeploy   = plugincontract.OpDeploy
 
 	// SettingTypeCommand is the only setting type this Plugin uses: a shell
 	// script run whole via /bin/sh -c, which may span lines.
 	SettingTypeCommand = plugincontract.SettingTypeCommand
+
+	// SettingInstall is the key of the one setting this Plugin declares: the
+	// script that puts the Certificate where the service reads it and reloads
+	// that service.
+	//
+	// Not "deploy", which is the operation carrying it out and the record it
+	// belongs to; a setting read as `Settings["deploy"]` inside the deploy
+	// operation of a Deployment gives one word three referents. Not "command"
+	// either: `Command` is already the Server's queued instruction to an Agent
+	// (wire.Command), and that is a worse collision for being an easySSL noun
+	// rather than a common word. "install" is what the script does, in the
+	// term the industry uses for putting a certificate onto a service, and it
+	// is the only one of the three that names this layer alone.
+	//
+	// A constant rather than a literal because deploy.go looks it up and
+	// describe.go declares it, and a Key is identity: values are stored
+	// against it, so the two must never be able to disagree.
+	SettingInstall = "install"
 )
 
 // The wire shapes, aliased so this package's own signatures read in its terms
@@ -38,6 +56,6 @@ type (
 	SettingDeclaration = plugincontract.SettingDeclaration
 	// DescribeResponse answers OpDescribe.
 	DescribeResponse = plugincontract.DescribeResponse
-	// InstallRequest is OpInstall's request.
-	InstallRequest = plugincontract.InstallRequest
+	// DeployRequest is OpDeploy's request.
+	DeployRequest = plugincontract.DeployRequest
 )

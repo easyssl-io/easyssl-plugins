@@ -6,7 +6,7 @@
 //
 // It builds to a standalone executable that an Agent fetches and then drives
 // over stdio: the operation name is the single argv argument, the JSON request
-// rides stdin and the JSON response rides stdout. Nothing sensitive is ever on
+// rides stdin and the answer is the exit status. Nothing sensitive is ever on
 // argv or in this process's own environment, because /proc/<pid>/cmdline is
 // world-readable and the private key must not be.
 package main
@@ -23,7 +23,7 @@ import (
 )
 
 // maxRequest bounds what is read from stdin. A certificate, its chain and a key
-// are a few kilobytes and a reload script is text, so this is generous for
+// are a few kilobytes and an install script is text, so this is generous for
 // both while stopping a malformed or hostile caller from making the Plugin
 // allocate freely.
 const maxRequest = 1 << 20
@@ -41,20 +41,20 @@ func main() {
 // run is main with its edges passed in, so the stdio framing is testable.
 func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: %s <%s|%s>", ops.Name, ops.OpDescribe, ops.OpInstall)
+		return fmt.Errorf("usage: %s <%s|%s>", ops.Name, ops.OpDescribe, ops.OpDeploy)
 	}
 	switch args[0] {
 	case ops.OpDescribe:
 		return writeJSON(stdout, ops.Describe())
-	case ops.OpInstall:
-		var req ops.InstallRequest
+	case ops.OpDeploy:
+		var req ops.DeployRequest
 		if err := readJSON(stdin, &req); err != nil {
-			return fmt.Errorf("reading the install request: %w", err)
+			return fmt.Errorf("reading the deploy request: %w", err)
 		}
 		// No response document: the exit status is the answer. An error here
-		// becomes a non-zero exit in main, and everything the install had to
-		// say is already on the two streams.
-		return ops.Install(context.Background(), req, stdout, os.Stderr)
+		// becomes a non-zero exit in main, and everything the run had to say is
+		// already on the two streams.
+		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
 	default:
 		// An operation this build does not implement. The Agent treats the
 		// non-zero exit here as the operation being unsupported.

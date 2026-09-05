@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// reloadTemplate is the default value of the one setting this Plugin declares.
+// installTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
 // and returns 0, so a Target created but not yet configured deploys cleanly and
 // says what it would have had to work with, instead of failing with an error
 // about a command nobody has written yet.
 //
-//go:embed reload.sh.tmpl
-var reloadTemplate string
+//go:embed install.sh.tmpl
+var installTemplate string
 
 // fallbackVersion is what this build reports when it carries no module version
 // of its own, which is every build made straight from a checkout rather than
@@ -55,8 +55,13 @@ func Describe() DescribeResponse {
 			"calling another tool, this Plugin can do. A service that has a Plugin of its " +
 			"own is better served by that one.",
 		Settings: []SettingDeclaration{{
-			Key:   "reload",
-			Label: "Reload command",
+			Key: SettingInstall,
+			// "Install command", not "Reload command", because reloading is
+			// the last thing this script does and not the whole of it: the
+			// Plugin writes the material to temporary files, and copying
+			// whichever of them the service reads to where it expects them is
+			// this command's job too. The old label named the smaller half.
+			Label: "Install command",
 			// The variables are named one per line rather than described as a
 			// group: they are what the command is written against, and a
 			// reader has to know which file holds what before they can write
@@ -91,7 +96,7 @@ func Describe() DescribeResponse {
 			// a Target with no command installs nothing and must not pretend
 			// otherwise. The template default keeps a fresh Target deployable
 			// while making plain that it has not been configured yet.
-			Default:  reloadTemplate,
+			Default:  installTemplate,
 			Required: true,
 			Summary:  false,
 		}},
