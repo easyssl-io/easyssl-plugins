@@ -172,7 +172,7 @@ func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 	if res.OK {
 		t.Fatalf("a script whose second line exits 0 hid its first line's failure: %s", res.Combined)
 	}
-	if !strings.Contains(res.Combined, "install failed: the reload command exited") {
+	if !strings.Contains(res.Combined, "the reload command exited") {
 		t.Fatalf("output does not say the command failed: %s", res.Combined)
 	}
 	// -e ends the script at the failing line, so what follows it never ran.

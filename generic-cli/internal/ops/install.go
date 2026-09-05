@@ -111,7 +111,9 @@ func Install(ctx context.Context, req InstallRequest, stdout, stderr io.Writer) 
 	// the shape the answer takes.
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if runErr := cmd.Run(); runErr != nil {
-		fmt.Fprintf(stdout, "install failed: the reload command %s\n", describeExit(runErr))
+		// Only the returned error, which main writes to stderr. Saying it on
+		// stdout as well put the same sentence in the transcript twice, once
+		// in each stream, which is what the two-stream shape makes visible.
 		return fmt.Errorf("the reload command %s", describeExit(runErr))
 	}
 	fmt.Fprintln(stdout, "install succeeded: the reload command exited 0")
