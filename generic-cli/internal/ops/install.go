@@ -250,8 +250,8 @@ func (w *prefixWriter) flush() {
 func (w *prefixWriter) line(b []byte) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	// Two spaces in, the label, two spaces out. Both labels are six characters
-	// so the command's own output stays column-aligned, which is most of what
-	// makes a transcript readable.
-	fmt.Fprintf(w.to, "  %s  %s\n", w.label, b)
+	// Both labels are six characters plus the colon and space, so the command's
+	// own column alignment survives, which is most of what makes a transcript
+	// readable.
+	fmt.Fprintf(w.to, "%s: %s\n", w.label, b)
 }

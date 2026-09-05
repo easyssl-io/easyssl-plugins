@@ -350,7 +350,7 @@ func TestInstallLabelsEachReloadStream(t *testing.T) {
 	if !res.OK {
 		t.Fatalf("a reload that exits 0 failed: %s", res.Output)
 	}
-	for _, want := range []string{"  stdout  out-line", "  stderr  err-line"} {
+	for _, want := range []string{"stdout: out-line", "stderr: err-line"} {
 		if !strings.Contains(res.Output, want) {
 			t.Fatalf("the transcript does not label its streams, wanted %q:\n%s", want, res.Output)
 		}
@@ -366,7 +366,7 @@ func TestInstallKeepsALineWithNoNewline(t *testing.T) {
 		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
 		Settings: map[string]string{"reload": "printf 'no trailing newline'\n"},
 	})
-	if !strings.Contains(res.Output, "  stdout  no trailing newline") {
+	if !strings.Contains(res.Output, "stdout: no trailing newline") {
 		t.Fatalf("a final line without a newline was dropped:\n%s", res.Output)
 	}
 }
@@ -380,7 +380,7 @@ func TestInstallLabelsPerLineNotPerWrite(t *testing.T) {
 		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
 		Settings: map[string]string{"reload": "printf 'certif'; sleep 0.1; printf 'icate\\n'\n"},
 	})
-	if !strings.Contains(res.Output, "  stdout  certificate") {
+	if !strings.Contains(res.Output, "stdout: certificate") {
 		t.Fatalf("a line split across writes was labeled twice:\n%s", res.Output)
 	}
 }
