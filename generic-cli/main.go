@@ -51,10 +51,10 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err := readJSON(stdin, &req); err != nil {
 			return fmt.Errorf("reading the install request: %w", err)
 		}
-		// The response describes the attempt whatever happened, a failed one
-		// included: exit 0 with ok:false is a Deployment that failed, while a
-		// non-zero exit is this Plugin failing, which is a different fact.
-		return writeJSON(stdout, ops.Install(context.Background(), req))
+		// No response document: the exit status is the answer. An error here
+		// becomes a non-zero exit in main, and everything the install had to
+		// say is already on the two streams.
+		return ops.Install(context.Background(), req, stdout, os.Stderr)
 	default:
 		// An operation this build does not implement. The Agent treats the
 		// non-zero exit here as the operation being unsupported.

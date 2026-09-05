@@ -63,12 +63,12 @@ func TestDescribeDeclaresTheReloadCommand(t *testing.T) {
 func TestDefaultTemplateSucceedsAndInstallsNothing(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := ops.Install(context.Background(), request(dir, ops.Describe().Settings[0].Default))
+	res := install(t, request(dir, ops.Describe().Settings[0].Default))
 	if !res.OK {
-		t.Fatalf("the declared default failed: %s", res.Output)
+		t.Fatalf("the declared default failed: %s", res.Combined)
 	}
-	if !strings.Contains(res.Output, "certificate: ") || !strings.Contains(res.Output, "key: ") {
-		t.Fatalf("the default template's output does not name the paths: %s", res.Output)
+	if !strings.Contains(res.Combined, "certificate: ") || !strings.Contains(res.Combined, "key: ") {
+		t.Fatalf("the default template's output does not name the paths: %s", res.Combined)
 	}
 }
 
@@ -90,9 +90,9 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
   echo "keymode=$(ls -l "$EASYSSL_KEY_PATH" | cut -c1-10)"
 } > ` + record
 
-	res := ops.Install(context.Background(), request(dir, script))
+	res := install(t, request(dir, script))
 	if !res.OK {
-		t.Fatalf("install failed: %s", res.Output)
+		t.Fatalf("install failed: %s", res.Combined)
 	}
 	seen := readFile(t, record)
 
@@ -129,27 +129,29 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
 	}
 }
 
-// A failed command is a failed Deployment, not a failed Plugin: install
-// returns ok:false with everything the command printed, and the process still
-// exits 0, which is what the Agent distinguishes.
+// A failed reload command fails the install, and everything it printed is kept.
+// The Plugin exits non-zero for it, which used to be reserved for the Plugin
+// itself breaking: there is no `ok` field left to say one while the exit status
+// says the other, and which of the two happened is said in the transcript, by
+// the Plugin, in words.
 func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := ops.Install(context.Background(), request(dir,
+	res := install(t, request(dir,
 		`echo "about to fail"; echo "on stderr" >&2; exit 3`))
 	if res.OK {
 		t.Fatal("a command exiting 3 reported ok")
 	}
-	if !strings.Contains(res.Output, "about to fail") {
-		t.Fatalf("output lost what the command printed: %s", res.Output)
+	if !strings.Contains(res.Combined, "about to fail") {
+		t.Fatalf("output lost what the command printed: %s", res.Combined)
 	}
 	// Combined, because a reload command's diagnostics are as much of the
 	// record as its output.
-	if !strings.Contains(res.Output, "on stderr") {
-		t.Fatalf("output lost the command's stderr: %s", res.Output)
+	if !strings.Contains(res.Combined, "on stderr") {
+		t.Fatalf("output lost the command's stderr: %s", res.Combined)
 	}
-	if !strings.Contains(res.Output, "exited 3") {
-		t.Fatalf("output does not say how the command ended: %s", res.Output)
+	if !strings.Contains(res.Combined, "exited 3") {
+		t.Fatalf("output does not say how the command ended: %s", res.Combined)
 	}
 	// The key is gone even though the command failed, which is the case that
 	// matters: a failed install must not leave key material behind.
@@ -165,17 +167,17 @@ func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := ops.Install(context.Background(), request(dir,
+	res := install(t, request(dir,
 		"ls /dont/exist\necho success"))
 	if res.OK {
-		t.Fatalf("a script whose second line exits 0 hid its first line's failure: %s", res.Output)
+		t.Fatalf("a script whose second line exits 0 hid its first line's failure: %s", res.Combined)
 	}
-	if !strings.Contains(res.Output, "install failed: the reload command exited") {
-		t.Fatalf("output does not say the command failed: %s", res.Output)
+	if !strings.Contains(res.Combined, "install failed: the reload command exited") {
+		t.Fatalf("output does not say the command failed: %s", res.Combined)
 	}
 	// -e ends the script at the failing line, so what follows it never ran.
-	if strings.Contains(res.Output, "success") {
-		t.Fatalf("the line after the failure still ran: %s", res.Output)
+	if strings.Contains(res.Combined, "success") {
+		t.Fatalf("the line after the failure still ran: %s", res.Combined)
 	}
 }
 
@@ -187,16 +189,16 @@ func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 func TestInstallCannotSeeAFailureOnTheLeftOfAnAndOrList(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := ops.Install(context.Background(), request(dir,
+	res := install(t, request(dir,
 		"cp /dont/exist "+filepath.Join(dir, "x")+" && echo reloaded; echo done"))
 	if !res.OK {
-		t.Fatalf("POSIX -e ended the script on the left of &&, which the description says it does not: %s", res.Output)
+		t.Fatalf("POSIX -e ended the script on the left of &&, which the description says it does not: %s", res.Combined)
 	}
-	if strings.Contains(res.Output, "reloaded") {
-		t.Fatalf("the right side of && ran after its left failed: %s", res.Output)
+	if strings.Contains(res.Combined, "reloaded") {
+		t.Fatalf("the right side of && ran after its left failed: %s", res.Combined)
 	}
-	if !strings.Contains(res.Output, "done") {
-		t.Fatalf("the line after the list did not run: %s", res.Output)
+	if !strings.Contains(res.Combined, "done") {
+		t.Fatalf("the line after the list did not run: %s", res.Combined)
 	}
 }
 
@@ -205,13 +207,13 @@ func TestInstallCannotSeeAFailureOnTheLeftOfAnAndOrList(t *testing.T) {
 func TestInstallLetsAScriptOptOutOfFailingFast(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := ops.Install(context.Background(), request(dir,
+	res := install(t, request(dir,
 		"set +e\nls /dont/exist\necho carried on"))
 	if !res.OK {
-		t.Fatalf("set +e did not restore last-line semantics: %s", res.Output)
+		t.Fatalf("set +e did not restore last-line semantics: %s", res.Combined)
 	}
-	if !strings.Contains(res.Output, "carried on") {
-		t.Fatalf("the line after the tolerated failure did not run: %s", res.Output)
+	if !strings.Contains(res.Combined, "carried on") {
+		t.Fatalf("the line after the tolerated failure did not run: %s", res.Combined)
 	}
 }
 
@@ -224,9 +226,9 @@ func TestNoKeyMaterialOnAnyCommandLine(t *testing.T) {
 	record := filepath.Join(dir, "cmdline.txt")
 	// `ps` output varies between systems, so the command records its own
 	// arguments, which is what the Plugin actually put there.
-	res := ops.Install(context.Background(), request(dir, `printf '%s\n' "$0" "$@" > `+record))
+	res := install(t, request(dir, `printf '%s\n' "$0" "$@" > `+record))
 	if !res.OK {
-		t.Fatalf("install failed: %s", res.Output)
+		t.Fatalf("install failed: %s", res.Combined)
 	}
 	argv := readFile(t, record)
 	if strings.Contains(argv, "KEY") || strings.Contains(argv, "PRIVATE KEY") {
@@ -242,7 +244,7 @@ func TestNoKeyMaterialOnAnyCommandLine(t *testing.T) {
 func TestInstallWithoutACommandFails(t *testing.T) {
 	dir := t.TempDir()
 	for _, settings := range []map[string]string{nil, {}, {"reload": "   "}} {
-		res := ops.Install(context.Background(), ops.InstallRequest{
+		res := install(t, ops.InstallRequest{
 			ContractVersion: ops.ContractVersion,
 			CertificatePem:  testCert, ChainPem: testChain, PrivateKeyPem: testKey,
 			WorkDir: dir, Settings: settings,
@@ -250,8 +252,8 @@ func TestInstallWithoutACommandFails(t *testing.T) {
 		if res.OK {
 			t.Fatalf("install with settings %v reported ok", settings)
 		}
-		if !strings.Contains(res.Output, "no reload command") {
-			t.Fatalf("output does not say what is missing: %s", res.Output)
+		if !strings.Contains(res.Combined, "no reload command") {
+			t.Fatalf("output does not say what is missing: %s", res.Combined)
 		}
 	}
 }
@@ -262,13 +264,13 @@ func TestInstallWithoutAWorkDirCleansUpAfterItself(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
 	record := filepath.Join(dir, "where.txt")
-	res := ops.Install(context.Background(), ops.InstallRequest{
+	res := install(t, ops.InstallRequest{
 		ContractVersion: ops.ContractVersion,
 		CertificatePem:  testCert, ChainPem: testChain, PrivateKeyPem: testKey,
 		Settings: map[string]string{"reload": `dirname "$EASYSSL_KEY_PATH" > ` + record},
 	})
 	if !res.OK {
-		t.Fatalf("install failed: %s", res.Output)
+		t.Fatalf("install failed: %s", res.Combined)
 	}
 	used := strings.TrimSpace(readFile(t, record))
 	if used == "" {
@@ -336,51 +338,35 @@ func readDuring(record, key string) string {
 	return rest
 }
 
-// Everything after "running the reload command" is the operator's own command
-// speaking rather than this Plugin, and the labels are what say so. Without
-// them a warning written to stderr by a command that succeeded reads as a
-// failure, which is the case this exists for.
-func TestInstallLabelsEachReloadStream(t *testing.T) {
-	dir := t.TempDir()
-	res := ops.Install(context.Background(), ops.InstallRequest{
-		ContractVersion: ops.ContractVersion,
-		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
-		Settings: map[string]string{"reload": "echo out-line\necho err-line >&2\n"},
-	})
-	if !res.OK {
-		t.Fatalf("a reload that exits 0 failed: %s", res.Output)
-	}
-	for _, want := range []string{"stdout: out-line", "stderr: err-line"} {
-		if !strings.Contains(res.Output, want) {
-			t.Fatalf("the transcript does not label its streams, wanted %q:\n%s", want, res.Output)
-		}
-	}
+// install runs the operation the way the Agent does — two streams and an exit
+// status, no response document — and gathers what a test wants to assert on.
+//
+// Combined is the two streams together, in the order this Plugin wrote them,
+// which is what the Agent records and the web console shows. Most assertions
+// here are about "did the transcript keep this", and splitting them per stream
+// would say less, not more.
+type installResult struct {
+	OK  bool
+	Out string
+	Err string
+	// Reason is what the operation returned when it failed. It leaves this
+	// Plugin as a line on stderr and a non-zero exit (see main), so a test
+	// asserting on it is asserting on what the Agent will record.
+	Reason   string
+	Combined string
 }
 
-// A command killed mid-line, or one that simply never ended its last line,
-// still wrote something worth reading; the line buffer must not swallow it.
-func TestInstallKeepsALineWithNoNewline(t *testing.T) {
-	dir := t.TempDir()
-	res := ops.Install(context.Background(), ops.InstallRequest{
-		ContractVersion: ops.ContractVersion,
-		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
-		Settings: map[string]string{"reload": "printf 'no trailing newline'\n"},
-	})
-	if !strings.Contains(res.Output, "stdout: no trailing newline") {
-		t.Fatalf("a final line without a newline was dropped:\n%s", res.Output)
+func install(t *testing.T, req ops.InstallRequest) installResult {
+	t.Helper()
+	var out, errb strings.Builder
+	err := ops.Install(context.Background(), req, &out, &errb)
+	r := installResult{
+		OK: err == nil, Out: out.String(), Err: errb.String(),
+		Combined: out.String() + errb.String(),
 	}
-}
-
-// One line, however many writes it took: a program writing "certif" then
-// "icate\n" is one line and must not be labeled twice.
-func TestInstallLabelsPerLineNotPerWrite(t *testing.T) {
-	dir := t.TempDir()
-	res := ops.Install(context.Background(), ops.InstallRequest{
-		ContractVersion: ops.ContractVersion,
-		CertificatePem:  "CERT", ChainPem: "CHAIN", PrivateKeyPem: "KEY", WorkDir: dir,
-		Settings: map[string]string{"reload": "printf 'certif'; sleep 0.1; printf 'icate\\n'\n"},
-	})
-	if !strings.Contains(res.Output, "stdout: certificate") {
-		t.Fatalf("a line split across writes was labeled twice:\n%s", res.Output)
+	if err != nil {
+		r.Reason = err.Error()
+		r.Combined += err.Error()
 	}
+	return r
 }

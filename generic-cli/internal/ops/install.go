@@ -1,15 +1,14 @@
 package ops
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 // File names written into the run's working directory. Fullchain is the
@@ -39,12 +38,14 @@ const (
 // also cleans up a run it had to kill; this cleanup is the Plugin doing its own
 // half rather than relying on that.
 //
-// The returned response always describes the attempt: OK is the command's
-// exit 0, and Output is one text carrying what the command printed, because the
-// command ran inside this Plugin and only this answer crosses back.
-func Install(ctx context.Context, req InstallRequest) InstallResponse {
-	var out strings.Builder
-	fmt.Fprintf(&out, "%s %s · install\n", Name, Version())
+// There is no response document. The exit status is the answer — nil here, a
+// non-zero exit from main — and what happened is on stdout and stderr, which
+// the Agent records in the order it received them. So this Plugin's narration
+// and the reload command's output are one transcript, and the command's stderr
+// arrives as stderr rather than as a labeled line inside a string, which is
+// what lets the Agent set it apart on screen.
+func Install(ctx context.Context, req InstallRequest, stdout, stderr io.Writer) error {
+	fmt.Fprintf(stdout, "%s %s · install\n", Name, Version())
 
 	command, ok := req.Settings["reload"]
 	if !ok || strings.TrimSpace(command) == "" {
@@ -52,14 +53,12 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 		// no value, so reaching here means something upstream is wrong rather
 		// than that the user forgot; say so plainly instead of running nothing
 		// and reporting success.
-		out.WriteString("install failed: no reload command was supplied, and this Plugin installs nothing by itself\n")
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return errors.New("no reload command was supplied, and this Plugin installs nothing by itself")
 	}
 
 	dir, cleanupDir, err := workDir(req.WorkDir)
 	if err != nil {
-		fmt.Fprintf(&out, "install failed: could not prepare the working directory: %v\n", err)
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return fmt.Errorf("could not prepare the working directory: %w", err)
 	}
 	if cleanupDir != nil {
 		defer cleanupDir()
@@ -70,12 +69,11 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	// can still have left the key.
 	defer removeAll(paths)
 	if err != nil {
-		fmt.Fprintf(&out, "install failed: could not write the certificate material: %v\n", err)
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return fmt.Errorf("could not write the certificate material: %w", err)
 	}
 
-	fmt.Fprintf(&out, "wrote the certificate, chain, fullchain and key to %s\n", dir)
-	out.WriteString("running the reload command\n")
+	fmt.Fprintf(stdout, "wrote the certificate, chain, fullchain and key to %s\n", dir)
+	fmt.Fprintln(stdout, "running the reload command")
 
 	// /bin/sh -c, so the command may be a multi-line script and use anything a
 	// shell offers. The script is on the shell's argv, which is the operator's
@@ -105,35 +103,19 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 		"EASYSSL_FULLCHAIN_PATH="+paths[fullchainFile],
 		"EASYSSL_KEY_PATH="+paths[keyFile],
 	)
-	// Both streams, labeled per line, into one buffer. Labeling them matters
-	// because everything from here on is the operator's own command speaking
-	// rather than this Plugin, and a warning written to stderr by a command
-	// that succeeded reads as a failure otherwise.
-	//
-	// The cost is exact interleaving. CombinedOutput gave both file descriptors
-	// one pipe, so the kernel ordered them and nothing could say which was
-	// which; two pipes can be labeled and are drained by a goroutine each, so
-	// the order between the streams is whatever those two are scheduled in.
-	// Within a stream it is exact. That is the trade, and labels are worth more
-	// than a interleaving that was only ever right for output slow enough to be
-	// read anyway.
-	//
-	// One mutex because those goroutines share this buffer.
-	var mu sync.Mutex
-	stdout := &prefixWriter{to: &out, mu: &mu, label: "stdout"}
-	stderr := &prefixWriter{to: &out, mu: &mu, label: "stderr"}
+	// Straight through. The reload command's stdout is this Plugin's stdout and
+	// its stderr is this Plugin's stderr, so the Agent records both in the order
+	// it received them and can set the second apart on screen. Nothing is
+	// labeled here any more: this Plugin prefixed each line because one output
+	// string could not say which stream a line came from, and that is no longer
+	// the shape the answer takes.
 	cmd.Stdout, cmd.Stderr = stdout, stderr
-	runErr := cmd.Run()
-	// A command killed mid-line, or one that never ended its last line, still
-	// wrote something worth reading.
-	stdout.flush()
-	stderr.flush()
-	if runErr != nil {
-		fmt.Fprintf(&out, "install failed: the reload command %s\n", describeExit(runErr))
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+	if runErr := cmd.Run(); runErr != nil {
+		fmt.Fprintf(stdout, "install failed: the reload command %s\n", describeExit(runErr))
+		return fmt.Errorf("the reload command %s", describeExit(runErr))
 	}
-	out.WriteString("install succeeded: the reload command exited 0\n")
-	return InstallResponse{ContractVersion: ContractVersion, OK: true, Output: out.String()}
+	fmt.Fprintln(stdout, "install succeeded: the reload command exited 0")
+	return nil
 }
 
 // workDir resolves where this run writes. The Agent supplies one it will
@@ -210,48 +192,4 @@ func describeExit(err error) string {
 		return fmt.Sprintf("exited %d", exitErr.ExitCode())
 	}
 	return fmt.Sprintf("could not be run: %v", err)
-}
-
-// prefixWriter labels each line of a stream as it arrives and writes it to a
-// buffer shared with the other stream, so the transcript keeps the order the
-// two happened in while still saying which is which.
-//
-// Line-buffered rather than per-write: a program writing "certif" and then
-// "icate\n" produces two writes and one line, and prefixing each write would
-// split it. Whatever is left without a newline is flushed by the caller when
-// the command ends.
-type prefixWriter struct {
-	to      *strings.Builder
-	mu      *sync.Mutex // shared with the other stream: one buffer, two goroutines
-	label   string
-	partial []byte
-}
-
-func (w *prefixWriter) Write(p []byte) (int, error) {
-	w.partial = append(w.partial, p...)
-	for {
-		i := bytes.IndexByte(w.partial, '\n')
-		if i < 0 {
-			return len(p), nil
-		}
-		w.line(w.partial[:i])
-		w.partial = w.partial[i+1:]
-	}
-}
-
-// flush emits a trailing line that never got its newline.
-func (w *prefixWriter) flush() {
-	if len(w.partial) > 0 {
-		w.line(w.partial)
-		w.partial = nil
-	}
-}
-
-func (w *prefixWriter) line(b []byte) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	// Both labels are six characters plus the colon and space, so the command's
-	// own column alignment survives, which is most of what makes a transcript
-	// readable.
-	fmt.Fprintf(w.to, "%s: %s\n", w.label, b)
 }

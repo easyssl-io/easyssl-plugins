@@ -40,6 +40,4 @@ type (
 	DescribeResponse = plugincontract.DescribeResponse
 	// InstallRequest is OpInstall's request.
 	InstallRequest = plugincontract.InstallRequest
-	// InstallResponse answers OpInstall.
-	InstallResponse = plugincontract.InstallResponse
 )
