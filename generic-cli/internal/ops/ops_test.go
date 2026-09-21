@@ -24,16 +24,16 @@ const (
 	testKey   = "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
 )
 
-func TestDescribeDeclaresTheReloadCommand(t *testing.T) {
-	d := ops.Describe()
+func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
+	d := ops.Discover()
 	if d.ContractVersion != ops.ContractVersion || d.Name != "generic-cli" {
-		t.Fatalf("describe identity = %q %q", d.ContractVersion, d.Name)
+		t.Fatalf("discover identity = %q %q", d.ContractVersion, d.Name)
 	}
 	if d.Version == "" {
-		t.Fatal("describe reports no version")
+		t.Fatal("discover reports no version")
 	}
 	if len(d.Settings) != 1 {
-		t.Fatalf("describe declares %d settings, want exactly the install command", len(d.Settings))
+		t.Fatalf("discover declares %d settings, want exactly the install command", len(d.Settings))
 	}
 	s := d.Settings[0]
 	if s.Key != ops.SettingInstall || s.Type != ops.SettingTypeCommand || !s.Required {
@@ -63,7 +63,7 @@ func TestDescribeDeclaresTheReloadCommand(t *testing.T) {
 func TestDefaultTemplateSucceedsAndInstallsNothing(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := deploy(t, request(dir, ops.Describe().Settings[0].Default))
+	res := deploy(t, request(dir, ops.Discover().Settings[0].Default))
 	if !res.OK {
 		t.Fatalf("the declared default failed: %s", res.Combined)
 	}

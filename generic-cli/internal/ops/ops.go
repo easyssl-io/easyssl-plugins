@@ -1,4 +1,4 @@
-// Package ops implements generic-cli's two operations, describe and deploy.
+// Package ops implements generic-cli's two operations, discover and deploy.
 // It holds everything the binary does; main.go is only the stdio framing.
 //
 // The request and response shapes come from the shared plugincontract package
@@ -21,9 +21,9 @@ const (
 	// it under. It is identity: a Target's settings are stored against it.
 	Name = "generic-cli"
 
-	// OpDescribe and OpDeploy are the operation names, each passed as the
+	// OpDiscover and OpDeploy are the operation names, each passed as the
 	// binary's single argv argument.
-	OpDescribe = plugincontract.OpDescribe
+	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
 
 	// SettingTypeCommand is the only setting type this Plugin uses: a shell
@@ -44,7 +44,7 @@ const (
 	// is the only one of the three that names this layer alone.
 	//
 	// A constant rather than a literal because deploy.go looks it up and
-	// describe.go declares it, and a Key is identity: values are stored
+	// discover.go declares it, and a Key is identity: values are stored
 	// against it, so the two must never be able to disagree.
 	SettingInstall = "install"
 )
@@ -54,8 +54,12 @@ const (
 type (
 	// SettingDeclaration is one setting a Plugin declares about itself.
 	SettingDeclaration = plugincontract.SettingDeclaration
-	// DescribeResponse answers OpDescribe.
-	DescribeResponse = plugincontract.DescribeResponse
+	// DiscoverResponse answers OpDiscover.
+	DiscoverResponse = plugincontract.DiscoverResponse
+	// SuggestedTarget is one installation point a discovering Plugin reports;
+	// this Plugin parses nothing and reports none, and the type is here so
+	// Discover can say so with an empty list rather than a nil one.
+	SuggestedTarget = plugincontract.SuggestedTarget
 	// DeployRequest is OpDeploy's request.
 	DeployRequest = plugincontract.DeployRequest
 )
