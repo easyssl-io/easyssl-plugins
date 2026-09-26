@@ -96,7 +96,8 @@ type Certificate struct {
 	// extension encodes them, addresses interleaved and wildcards as written.
 	SANs   []string
 	SANErr error
-	// KeyType names the leaf's key, for the reader choosing an algorithm.
+	// KeyType is the leaf's key as a Certificate key type (wire.KeyTypes),
+	// empty for any other algorithm.
 	KeyType string
 
 	Refs []CertRef
@@ -147,39 +148,13 @@ func analyze(found []instance) ([]SuggestedTarget, []string) {
 			lines = append(lines, fmt.Sprintf("`pid %d`: `%s:%d`", r.PID, r.File, r.Line))
 		}
 		t.PluginExtraData = []ExtraDatum{{Label: "Locations", Value: strings.Join(lines, "\n")}}
-		if c.KeyType != "" {
-			t.PluginExtraData = append(t.PluginExtraData, ExtraDatum{Label: "Key algorithm", Value: c.KeyType})
-		}
+		t.KeyType = c.KeyType
 		targets = append(targets, t)
 	}
 	for _, c := range conflicts {
 		warnings = append(warnings, warnKeyConflict(c))
 	}
 	return targets, warnings
-}
-
-// keyTypeLabel names a certificate's key the way the web console does, so
-// the reader requesting a Certificate for this Target picks the matching one.
-func keyTypeLabel(pub any) string {
-	switch wire.KeyTypeOf(pub) {
-	case wire.KeyTypeECP256:
-		return "ECDSA P-256"
-	case wire.KeyTypeECP384:
-		return "ECDSA P-384"
-	case wire.KeyTypeRSA2048:
-		return "RSA 2048"
-	case wire.KeyTypeRSA3072:
-		return "RSA 3072"
-	case wire.KeyTypeRSA4096:
-		return "RSA 4096"
-	}
-	switch k := pub.(type) {
-	case *rsa.PublicKey:
-		return fmt.Sprintf("RSA %d", k.N.BitLen())
-	case *ecdsa.PublicKey:
-		return "ECDSA " + k.Curve.Params().Name
-	}
-	return ""
 }
 
 func or(s, alt string) string {
@@ -574,7 +549,7 @@ func group(refs []CertRef) (kept, conflicts []Certificate) {
 		}
 		c.SANs, c.SANErr = sans(path)
 		if leaf, err := leafOf(path); err == nil {
-			c.KeyType = keyTypeLabel(leaf.PublicKey)
+			c.KeyType = wire.KeyTypeOf(leaf.PublicKey)
 		}
 		kept = append(kept, c)
 	}

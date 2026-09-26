@@ -203,11 +203,11 @@ func TestDiscoverCases(t *testing.T) {
 				t.Errorf("%s paired with %s, want %s", cert, k, key)
 			}
 		}
-		if a := extra(got[ssl+"dual-rsa.crt"], "Key algorithm"); a != "RSA 2048" {
-			t.Errorf("dual-rsa key algorithm %q", a)
+		if a := got[ssl+"dual-rsa.crt"].KeyType; a != "rsa_2048" {
+			t.Errorf("dual-rsa key type %q", a)
 		}
-		if a := extra(got[ssl+"dual-ec.crt"], "Key algorithm"); a != "ECDSA P-256" {
-			t.Errorf("dual-ec key algorithm %q", a)
+		if a := got[ssl+"dual-ec.crt"].KeyType; a != "ec_p256" {
+			t.Errorf("dual-ec key type %q", a)
 		}
 	})
 	t.Run("one certificate with two key files is a warning", func(t *testing.T) {
