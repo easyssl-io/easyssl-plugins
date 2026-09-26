@@ -121,19 +121,35 @@ func configOf(title, exe string) string {
 			return f[i+1]
 		}
 	}
-	return buildValue(exe, "--conf-path=")
+	return compiledConfig(exe)
 }
 
-// buildValue reads one compiled-in path out of `nginx -V`, whose output goes to
-// stderr.
-func buildValue(exe, key string) string {
-	out, _ := exec.Command(exe, "-V").CombinedOutput()
-	for _, tok := range strings.Fields(string(out)) {
-		if strings.HasPrefix(tok, key) {
-			return strings.TrimPrefix(tok, key)
+// compiledConfig is the configuration a binary reads with no -c.
+func compiledConfig(exe string) string {
+	out, _ := exec.Command(exe, "-V").CombinedOutput() // on stderr
+	return compiledConfigFrom(string(out))
+}
+
+// compiledConfigFrom reads it out of `nginx -V`. A distribution's build names
+// --conf-path; a build from source often names only --prefix, or nothing, and
+// nginx then reads conf/nginx.conf under the prefix, /usr/local/nginx by
+// default. A relative --conf-path is relative to the prefix too. Found on a
+// BusyBox host running nginx compiled with --prefix alone, whose instance
+// discovery otherwise reported as having no configuration.
+func compiledConfigFrom(v string) string {
+	prefix, conf := "/usr/local/nginx", "conf/nginx.conf"
+	for _, tok := range strings.Fields(v) {
+		if p, ok := strings.CutPrefix(tok, "--prefix="); ok {
+			prefix = p
+		}
+		if c, ok := strings.CutPrefix(tok, "--conf-path="); ok {
+			conf = c
 		}
 	}
-	return ""
+	if filepath.IsAbs(conf) {
+		return conf
+	}
+	return filepath.Join(prefix, conf)
 }
 
 // A systemd unit name: letters, digits, and the punctuation systemd allows,
@@ -181,7 +197,7 @@ func testCommand(in *instance) string {
 // withConfig is the binary plus -c when the configuration is not that binary's
 // compiled default, in which case naming it would be harmless but wrong.
 func withConfig(in *instance) string {
-	if in.ConfigPath != "" && in.ConfigPath != buildValue(in.Exe, "--conf-path=") {
+	if in.ConfigPath != "" && in.ConfigPath != compiledConfig(in.Exe) {
 		return fmt.Sprintf("%s -c %s", in.Exe, in.ConfigPath)
 	}
 	return in.Exe
