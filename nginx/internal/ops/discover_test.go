@@ -148,7 +148,7 @@ func TestDiscoverCases(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s not suggested", c.cert)
 			}
-			if loc := extra(s, "Locations"); !strings.Contains(loc, root+"/"+c.file+":") {
+			if loc := extra(s, "Locations"); !strings.Contains(loc, "`pid 100`: `"+root+"/"+c.file+":") {
 				t.Errorf("%s located at %q, want %s", c.cert, loc, c.file)
 			}
 		}

@@ -113,7 +113,7 @@ func analyze(found []instance) ([]SuggestedTarget, []string) {
 	for _, in := range found {
 		reload[in.PID], test[in.PID] = in.Reload, in.Test
 		if in.CertsErr != nil {
-			warnings = append(warnings, fmt.Sprintf("pid %d (`%s`, config `%s`): %v", in.PID, in.Exe, or(in.ConfigPath, "unknown"), in.CertsErr))
+			warnings = append(warnings, fmt.Sprintf("`pid %d` (`%s`, config `%s`): %v", in.PID, in.Exe, or(in.ConfigPath, "unknown"), in.CertsErr))
 			continue
 		}
 		for _, c := range in.Certs {
@@ -144,7 +144,7 @@ func analyze(found []instance) ([]SuggestedTarget, []string) {
 		}
 		var lines []string
 		for _, r := range c.Refs {
-			lines = append(lines, fmt.Sprintf("pid %d: `%s:%d`", r.PID, r.File, r.Line))
+			lines = append(lines, fmt.Sprintf("`pid %d`: `%s:%d`", r.PID, r.File, r.Line))
 		}
 		t.PluginExtraData = []ExtraDatum{{Label: "Locations", Value: strings.Join(lines, "\n")}}
 		if c.KeyType != "" {
@@ -215,7 +215,7 @@ func warnShared(c Certificate, found []instance) string {
 	}
 	var parts []string
 	for _, pid := range pids {
-		parts = append(parts, fmt.Sprintf("pid %d, reloaded with `%s`, at %s",
+		parts = append(parts, fmt.Sprintf("`pid %d`, reloaded with `%s`, at %s",
 			pid, reload[pid], strings.Join(where[pid], ", ")))
 	}
 	return fmt.Sprintf("`%s` is read by %d nginx instances (%s) and is not listed. A renewal "+
@@ -238,7 +238,7 @@ func warnKeyConflict(c Certificate) string {
 		if _, seen := where[r.KeyResolved]; !seen {
 			order = append(order, r.KeyResolved)
 		}
-		where[r.KeyResolved] = append(where[r.KeyResolved], fmt.Sprintf("pid %d `%s:%d`", r.PID, r.File, r.KeyLine))
+		where[r.KeyResolved] = append(where[r.KeyResolved], fmt.Sprintf("`pid %d` `%s:%d`", r.PID, r.File, r.KeyLine))
 	}
 	var parts []string
 	for _, k := range order {
