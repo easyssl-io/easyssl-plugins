@@ -14,6 +14,7 @@ touching the Agent.
 | Plugin | What it does |
 |--------|--------------|
 | `generic-cli` | The general-purpose fallback. You write one command that puts the certificate and key where they belong and reloads the service, and it runs exactly that: no configuration parsing, nothing tied to any particular server software. The command runs under `sh -e`, so a line that fails fails the deployment; a failure on the left of `&&` or `||`, or inside a pipeline, does not count, so a command that must fail goes on its own line. |
+| `nginx` | Finds the certificates every running nginx master serves (parsing its configuration with every `include`, pairing dual RSA and ECDSA certificates by algorithm) and suggests each as a Target. Deploys by writing the full chain and the key with the replaced files' permissions (`0600` for a new file), running the instance's `nginx -t`, putting the old files back if that fails, and reloading. A successful reload is not proof nginx serves the new Certificate, and its output says so. |
 
 Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Per-module release tags (`generic-cli/v1.2.0`) also match how the catalog versions each artifact separately.
 
