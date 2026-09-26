@@ -61,7 +61,11 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if err != nil {
 		return err
 	}
-	if err := checkDual(certPath, leaf.PublicKeyAlgorithm, blocksServing); err != nil {
+	serving := blocksServing(certPath)
+	if err := checkPairing(certPath, keyPath, serving); err != nil {
+		return err
+	}
+	if err := checkDual(certPath, leaf.PublicKeyAlgorithm, func(string) []block { return serving }); err != nil {
 		return err
 	}
 
@@ -112,6 +116,25 @@ func parseLeaf(certificatePEM string) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
+// checkPairing refuses a Target whose key file is not the one nginx pairs its
+// certificate with. The key would land where nothing reads it, and the
+// certificate beside whatever key nginx does read. `nginx -t` catches that
+// only when the two keys share an algorithm: with an RSA certificate and an
+// ECDSA key, OpenSSL files each in its own slot, the test passes, and the
+// server is left with an RSA certificate and no RSA key. Found on a
+// sysvinit test host, where exactly that Deployment succeeded.
+func checkPairing(certPath, keyPath string, serving []block) error {
+	for _, b := range serving {
+		for _, r := range pair(b) {
+			if r.Resolved == certPath && r.KeyResolved != "" && r.KeyResolved != keyPath {
+				return fmt.Errorf("the configuration at %s:%d pairs %s with the key %s, but this Target writes the key to %s, "+
+					"so nginx would serve the new certificate with the old key. Set ssl_certificate_key to %s", r.File, r.KeyLine, certPath, r.KeyResolved, keyPath, r.KeyResolved)
+			}
+		}
+	}
+	return nil
+}
+
 // checkDual refuses to put a Certificate of one algorithm where the server
 // block already loads another Certificate of that algorithm, which is what
 // replacing the RSA half of a dual RSA and ECDSA pair with an ECDSA
@@ -133,7 +156,7 @@ func checkDual(path string, alg x509.PublicKeyAlgorithm, serving func(string) []
 			}
 		}
 		if old != x509.UnknownPublicKeyAlgorithm && old != alg && len(others) > 0 {
-			return fmt.Errorf("%s holds a %s certificate, and the block at %s also loads %s, which is %s already; "+
+			return fmt.Errorf("%s holds an %s certificate, and the block at %s also loads %s, which is %s already; "+
 				"installing an %s Certificate here would give nginx two %s certificates and no %s one. "+
 				"Request an %s Certificate for this Target instead", path, old, b.file, strings.Join(others, ", "), alg, alg, alg, old, old)
 		}

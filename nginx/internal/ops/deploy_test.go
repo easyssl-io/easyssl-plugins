@@ -194,3 +194,23 @@ func TestDualGuard(t *testing.T) {
 		t.Fatalf("switching a single-certificate block's algorithm: %v", err)
 	}
 }
+
+// The pairing guard: a Target whose key file is not the one the configuration
+// pairs its certificate with is refused, naming the file and line to set.
+func TestPairingGuard(t *testing.T) {
+	m := issue(t, "ec", "a.example.test")
+	root := tree(t, map[string]string{"site.crt": m.cert, "site.key": m.key})
+	b := block{file: root + "/site.conf",
+		certs: []ref{{line: 3, resolved: root + "/site.crt"}},
+		keys:  []ref{{line: 4, resolved: root + "/site.key"}}}
+	err := checkPairing(root+"/site.crt", root+"/elsewhere.key", []block{b})
+	if err == nil || !strings.Contains(err.Error(), "site.conf:4") || !strings.Contains(err.Error(), "Set ssl_certificate_key to "+root+"/site.key") {
+		t.Fatalf("a key file nginx does not pair: %v", err)
+	}
+	if err := checkPairing(root+"/site.crt", root+"/site.key", []block{b}); err != nil {
+		t.Fatalf("the paired key file: %v", err)
+	}
+	if err := checkPairing(root+"/new.crt", root+"/new.key", nil); err != nil {
+		t.Fatalf("a path no nginx loads: %v", err)
+	}
+}
