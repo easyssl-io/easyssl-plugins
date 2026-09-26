@@ -41,7 +41,7 @@ type (
 // fallbackVersion is what a build with no module version of its own reports,
 // which is every build made from a checkout. The distribution catalog serving
 // this checkout uses the same value, and both move together.
-const fallbackVersion = "0.1.0"
+const fallbackVersion = "0.0.1"
 
 // Version reports the module version stamped into the binary, else
 // fallbackVersion.
