@@ -5,8 +5,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -100,6 +102,9 @@ type Certificate struct {
 	// KeyType is the leaf's key as a Certificate key type (wire.KeyTypes),
 	// empty for any other algorithm.
 	KeyType string
+	// SHA256 is the hex SHA-256 of the leaf's DER, empty when the file holds
+	// no certificate this could read.
+	SHA256 string
 
 	Refs []CertRef
 }
@@ -140,12 +145,12 @@ func analyze(found []instance) ([]DiscoveredTarget, []string) {
 		// What the file itself says, absent when nothing could be read from
 		// it: the installation point is reported regardless, since it works
 		// whatever the parser thinks of the file.
-		if c.SANErr == nil || c.KeyType != "" {
+		if c.SANErr == nil || c.KeyType != "" || c.SHA256 != "" {
 			domains := c.SANs
 			if domains == nil {
 				domains = []string{}
 			}
-			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType}
+			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType, SHA256: c.SHA256}
 		}
 		if c.SANErr != nil {
 			warnings = append(warnings, fmt.Sprintf("`%s`: its names could not be read, so none are reported: %v", c.Path, c.SANErr))
@@ -554,8 +559,12 @@ func group(refs []CertRef) (kept, conflicts []Certificate) {
 			continue
 		}
 		c.SANs, c.SANErr = sans(path)
-		if leaf, err := leafOf(path); err == nil {
-			c.KeyType = wire.KeyTypeOf(leaf.PublicKey)
+		if der, err := leafDER(path); err == nil {
+			sum := sha256.Sum256(der)
+			c.SHA256 = hex.EncodeToString(sum[:])
+			if leaf, err := x509.ParseCertificate(der); err == nil {
+				c.KeyType = wire.KeyTypeOf(leaf.PublicKey)
+			}
 		}
 		kept = append(kept, c)
 	}
@@ -597,6 +606,16 @@ func sans(path string) ([]string, error) {
 // the leaf comes first and the issuers follow, and an issuer is neither what
 // the server answers for nor what its key belongs to.
 func leafOf(path string) (*x509.Certificate, error) {
+	der, err := leafDER(path)
+	if err != nil {
+		return nil, err
+	}
+	return x509.ParseCertificate(der)
+}
+
+// leafDER is the DER of the first certificate in a PEM file, unparsed, so a
+// leaf crypto/x509 refuses (a negative serial) still has a fingerprint.
+func leafDER(path string) ([]byte, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -610,7 +629,7 @@ func leafOf(path string) (*x509.Certificate, error) {
 		if blk.Type != "CERTIFICATE" {
 			continue // a key or parameters sharing the file
 		}
-		return x509.ParseCertificate(blk.Bytes)
+		return blk.Bytes, nil
 	}
 	return nil, fmt.Errorf("no PEM certificate in %s", path)
 }

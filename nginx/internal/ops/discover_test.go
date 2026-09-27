@@ -1,6 +1,8 @@
 package ops
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"slices"
 	"strings"
@@ -224,6 +226,20 @@ func TestDiscoverCases(t *testing.T) {
 		}
 		if a := keyTypeOf(got[ssl+"dual-ec.crt"]); a != "ec_p256" {
 			t.Errorf("dual-ec key type %q", a)
+		} // The fingerprint is of the leaf's DER, so it names this exact file
+		// and differs between the two halves.
+		for _, name := range []string{"dual-rsa.crt", "dual-ec.crt"} {
+			der, err := leafDER(ssl + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256(der)
+			if c := got[ssl+name].Certificate; c == nil || c.SHA256 != hex.EncodeToString(sum[:]) {
+				t.Errorf("%s fingerprint %+v, want the leaf's SHA-256", name, c)
+			}
+		}
+		if got[ssl+"dual-rsa.crt"].Certificate.SHA256 == got[ssl+"dual-ec.crt"].Certificate.SHA256 {
+			t.Error("both halves report one fingerprint")
 		}
 	})
 	t.Run("one certificate with two key files is a warning", func(t *testing.T) {
