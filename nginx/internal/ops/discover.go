@@ -157,7 +157,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []string) {
 		}
 		var lines []string
 		for _, r := range c.Refs {
-			lines = append(lines, fmt.Sprintf("`pid %d`: `%s:%d`", r.PID, r.File, r.Line))
+			lines = append(lines, fmt.Sprintf("`pid %d: %s:%d`", r.PID, r.File, r.Line))
 		}
 		t.PluginExtraData = []ExtraDatum{{Label: "Locations", Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
