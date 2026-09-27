@@ -56,10 +56,10 @@ type (
 	SettingDeclaration = plugincontract.SettingDeclaration
 	// DiscoverResponse answers OpDiscover.
 	DiscoverResponse = plugincontract.DiscoverResponse
-	// SuggestedTarget is one installation point a discovering Plugin reports;
-	// this Plugin parses nothing and reports none, and the type is here so
-	// Discover can say so with an empty list rather than a nil one.
-	SuggestedTarget = plugincontract.SuggestedTarget
+	// DiscoveredTarget is one installation point a discovering Plugin
+	// reports; this Plugin parses nothing and reports none, and the type is
+	// here so Discover can say so with an empty list rather than a nil one.
+	DiscoveredTarget = plugincontract.DiscoveredTarget
 	// DeployRequest is OpDeploy's request.
 	DeployRequest = plugincontract.DeployRequest
 )

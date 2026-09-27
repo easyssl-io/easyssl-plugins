@@ -46,7 +46,7 @@ func Version() string {
 // nothing here is repeated Server-side.
 // Discover answers with what this Plugin is and declares. It sees nothing on
 // the host by construction: it parses no configuration, so it has no
-// installation point to suggest and nothing to warn about, and both lists are
+// installation point to report and nothing to warn about, and both lists are
 // empty rather than absent so the answer says so explicitly.
 func Discover() DiscoverResponse {
 	return DiscoverResponse{
@@ -104,7 +104,7 @@ func Discover() DiscoverResponse {
 			Required: true,
 			Summary:  false,
 		}},
-		SuggestedTargets: []SuggestedTarget{},
-		Warnings:         []string{},
+		DiscoveredTargets: []DiscoveredTarget{},
+		Warnings:          []string{},
 	}
 }

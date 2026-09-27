@@ -113,15 +113,31 @@ func replaceRoot(t *testing.T, root, p string) {
 	}
 }
 
-func byCert(targets []SuggestedTarget) map[string]SuggestedTarget {
-	out := map[string]SuggestedTarget{}
+func byCert(targets []DiscoveredTarget) map[string]DiscoveredTarget {
+	out := map[string]DiscoveredTarget{}
 	for _, s := range targets {
 		out[s.PluginSettings[SettingCertificate]] = s
 	}
 	return out
 }
 
-func extra(s SuggestedTarget, label string) string {
+// domainsOf and keyTypeOf read the discovered certificate, nil and empty
+// when none was reported.
+func domainsOf(t DiscoveredTarget) []string {
+	if t.Certificate == nil {
+		return nil
+	}
+	return t.Certificate.Domains
+}
+
+func keyTypeOf(t DiscoveredTarget) string {
+	if t.Certificate == nil {
+		return ""
+	}
+	return t.Certificate.KeyType
+}
+
+func extra(s DiscoveredTarget, label string) string {
 	for _, d := range s.PluginExtraData {
 		if d.Label == label {
 			return d.Value
@@ -146,7 +162,7 @@ func TestDiscoverCases(t *testing.T) {
 		} {
 			s, ok := got[ssl+c.cert]
 			if !ok {
-				t.Fatalf("%s not suggested", c.cert)
+				t.Fatalf("%s not reported", c.cert)
 			}
 			if loc := extra(s, "Locations"); !strings.Contains(loc, "`pid 100`: `"+root+"/"+c.file+":") {
 				t.Errorf("%s located at %q, want %s", c.cert, loc, c.file)
@@ -155,27 +171,27 @@ func TestDiscoverCases(t *testing.T) {
 	})
 	t.Run("decoys nginx never loads are absent", func(t *testing.T) {
 		if _, ok := got[ssl+"decoy.crt"]; ok {
-			t.Fatal("decoy.crt suggested: an unlinked sites-available entry, an orphan snippet or a comment was read")
+			t.Fatal("decoy.crt reported: an unlinked sites-available entry, an orphan snippet or a comment was read")
 		}
 	})
 	t.Run("names come from the certificate, in its order", func(t *testing.T) {
-		if d := got[ssl+"confd.crt"].SuggestedDomains; !slices.Equal(d, []string{"a.example.test", "b.example.test", "c.example.test"}) {
+		if d := domainsOf(got[ssl+"confd.crt"]); !slices.Equal(d, []string{"a.example.test", "b.example.test", "c.example.test"}) {
 			t.Errorf("confd domains %v", d)
 		}
-		if d := got[ssl+"order.crt"].SuggestedDomains; !slices.Equal(d, []string{"first.example.test", "192.0.2.7", "last.example.test"}) {
+		if d := domainsOf(got[ssl+"order.crt"]); !slices.Equal(d, []string{"first.example.test", "192.0.2.7", "last.example.test"}) {
 			t.Errorf("interleaved SANs %v, want DNS, IP, DNS in encoded order", d)
 		}
-		if d := got[ssl+"chain.crt"].SuggestedDomains; !slices.Equal(d, []string{"leaf.example.test"}) {
+		if d := domainsOf(got[ssl+"chain.crt"]); !slices.Equal(d, []string{"leaf.example.test"}) {
 			t.Errorf("fullchain domains %v, want the leaf's only", d)
 		}
 		nosan, ok := got[ssl+"nosan.crt"]
-		if !ok || len(nosan.SuggestedDomains) != 0 || nosan.SuggestedDomains == nil {
-			t.Errorf("a certificate with no SAN extension: %+v, want suggested with an empty list", nosan)
+		if !ok || nosan.Certificate == nil || len(nosan.Certificate.Domains) != 0 || nosan.Certificate.Domains == nil {
+			t.Errorf("a certificate with no SAN extension: %+v, want reported with an empty list", nosan)
 		}
 	})
-	t.Run("http-level certificate is one suggestion", func(t *testing.T) {
+	t.Run("http-level certificate is one discovered Target", func(t *testing.T) {
 		if _, ok := got[ssl+"http.crt"]; !ok {
-			t.Fatal("http-level certificate not suggested")
+			t.Fatal("http-level certificate not reported")
 		}
 	})
 	t.Run("relative path resolves against the configuration directory", func(t *testing.T) {
@@ -187,7 +203,7 @@ func TestDiscoverCases(t *testing.T) {
 	t.Run("five spellings of one file are one suggestion", func(t *testing.T) {
 		s, ok := got[ssl+"many.crt"]
 		if !ok {
-			t.Fatal("many.crt not suggested under its resolved path")
+			t.Fatal("many.crt not reported under its resolved path")
 		}
 		if n := strings.Count(extra(s, "Locations"), "\n") + 1; n != 5 {
 			t.Fatalf("many.crt has %d locations, want 5:\n%s", n, extra(s, "Locations"))
@@ -203,10 +219,10 @@ func TestDiscoverCases(t *testing.T) {
 				t.Errorf("%s paired with %s, want %s", cert, k, key)
 			}
 		}
-		if a := got[ssl+"dual-rsa.crt"].KeyType; a != "rsa_2048" {
+		if a := keyTypeOf(got[ssl+"dual-rsa.crt"]); a != "rsa_2048" {
 			t.Errorf("dual-rsa key type %q", a)
 		}
-		if a := got[ssl+"dual-ec.crt"].KeyType; a != "ec_p256" {
+		if a := keyTypeOf(got[ssl+"dual-ec.crt"]); a != "ec_p256" {
 			t.Errorf("dual-ec key type %q", a)
 		}
 	})
@@ -297,14 +313,14 @@ func hasWarning(warnings []string, parts ...string) bool {
 	return false
 }
 
-func equalTargets(a, b []SuggestedTarget) bool {
+func equalTargets(a, b []DiscoveredTarget) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
 		if a[i].PluginSettings[SettingCertificate] != b[i].PluginSettings[SettingCertificate] ||
 			extra(a[i], "Locations") != extra(b[i], "Locations") ||
-			!slices.Equal(a[i].SuggestedDomains, b[i].SuggestedDomains) {
+			!slices.Equal(domainsOf(a[i]), domainsOf(b[i])) || keyTypeOf(a[i]) != keyTypeOf(b[i]) {
 			return false
 		}
 	}

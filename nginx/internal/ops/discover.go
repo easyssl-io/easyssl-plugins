@@ -22,13 +22,14 @@ import (
 
 // Discovery, in two halves. scan.go finds the running nginx masters and asks
 // each for its reload and test commands; this file parses what each one loads
-// and turns it into suggestions and warnings. The split is what lets the
+// and turns it into discovered Targets and warnings. The split is what lets the
 // tests run every configuration case against real files without a running
 // nginx.
 
 // Discover answers with the declarations and what this host's nginx serves.
 // A host with no nginx, or one this Plugin cannot inspect, answers with the
-// declarations and no suggestions: discover never fails for what it finds.
+// declarations and no discovered Targets: discover never fails for what it
+// finds.
 func Discover() DiscoverResponse {
 	resp := DiscoverResponse{
 		ContractVersion: plugincontractVersion,
@@ -37,16 +38,16 @@ func Discover() DiscoverResponse {
 		Description: "Installs Certificates into nginx. It finds the certificates every running nginx serves, " +
 			"and installs a new one by writing the files, testing the configuration with `nginx -t` " +
 			"and reloading only when that passes.",
-		Settings:         declarations(),
-		SuggestedTargets: []SuggestedTarget{},
-		Warnings:         []string{},
+		Settings:          declarations(),
+		DiscoveredTargets: []DiscoveredTarget{},
+		Warnings:          []string{},
 	}
 	found, err := scan()
 	if err != nil {
 		resp.Warnings = append(resp.Warnings, err.Error())
 		return resp
 	}
-	resp.SuggestedTargets, resp.Warnings = analyze(found)
+	resp.DiscoveredTargets, resp.Warnings = analyze(found)
 	return resp
 }
 
@@ -88,7 +89,7 @@ type CertRef struct {
 type Certificate struct {
 	Path string
 	// Key is the key of the first occurrence. A certificate whose occurrences
-	// disagree about the key is not suggested at all but warned about, since
+	// disagree about the key is not reported at all but warned about, since
 	// reporting one key would be true of only some of its uses.
 	Key string
 
@@ -103,12 +104,12 @@ type Certificate struct {
 	Refs []CertRef
 }
 
-// analyze turns the instances into suggestions and warnings. Every
-// suggestion belongs to exactly one master, because a file read by two
+// analyze turns the instances into discovered Targets and warnings. Every
+// discovered Target belongs to exactly one master, because a file read by two
 // leaves the list (warnShared), so "its reload" is well defined.
-func analyze(found []instance) ([]SuggestedTarget, []string) {
+func analyze(found []instance) ([]DiscoveredTarget, []string) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
-	targets, warnings := []SuggestedTarget{}, []string{}
+	targets, warnings := []DiscoveredTarget{}, []string{}
 	reload, test := map[int]string{}, map[int]string{}
 	var refs []CertRef
 	for _, in := range found {
@@ -128,27 +129,32 @@ func analyze(found []instance) ([]SuggestedTarget, []string) {
 			warnings = append(warnings, w)
 			continue
 		}
-		t := SuggestedTarget{
+		t := DiscoveredTarget{
 			PluginSettings: map[string]string{
 				SettingCertificate: c.Path,
 				SettingKey:         c.Key,
 				SettingTest:        test[c.Refs[0].PID],
 				SettingReload:      reload[c.Refs[0].PID],
 			},
-			SuggestedDomains: c.SANs,
 		}
-		if t.SuggestedDomains == nil {
-			t.SuggestedDomains = []string{}
+		// What the file itself says, absent when nothing could be read from
+		// it: the installation point is reported regardless, since it works
+		// whatever the parser thinks of the file.
+		if c.SANErr == nil || c.KeyType != "" {
+			domains := c.SANs
+			if domains == nil {
+				domains = []string{}
+			}
+			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType}
 		}
 		if c.SANErr != nil {
-			warnings = append(warnings, fmt.Sprintf("`%s`: its names could not be read, so it suggests none: %v", c.Path, c.SANErr))
+			warnings = append(warnings, fmt.Sprintf("`%s`: its names could not be read, so none are reported: %v", c.Path, c.SANErr))
 		}
 		var lines []string
 		for _, r := range c.Refs {
 			lines = append(lines, fmt.Sprintf("`pid %d`: `%s:%d`", r.PID, r.File, r.Line))
 		}
 		t.PluginExtraData = []ExtraDatum{{Label: "Locations", Value: strings.Join(lines, "\n")}}
-		t.KeyType = c.KeyType
 		targets = append(targets, t)
 	}
 	for _, c := range conflicts {

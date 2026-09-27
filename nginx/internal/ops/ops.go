@@ -31,11 +31,12 @@ const (
 )
 
 type (
-	SettingDeclaration = plugincontract.SettingDeclaration
-	DiscoverResponse   = plugincontract.DiscoverResponse
-	SuggestedTarget    = plugincontract.SuggestedTarget
-	ExtraDatum         = plugincontract.ExtraDatum
-	DeployRequest      = plugincontract.DeployRequest
+	SettingDeclaration    = plugincontract.SettingDeclaration
+	DiscoverResponse      = plugincontract.DiscoverResponse
+	DiscoveredTarget      = plugincontract.DiscoveredTarget
+	DiscoveredCertificate = plugincontract.DiscoveredCertificate
+	ExtraDatum            = plugincontract.ExtraDatum
+	DeployRequest         = plugincontract.DeployRequest
 )
 
 // fallbackVersion is what a build with no module version of its own reports,
