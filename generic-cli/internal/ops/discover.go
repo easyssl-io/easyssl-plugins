@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// reloadTemplate is the default value of the one setting this Plugin declares.
+// installTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
 // and returns 0, so a Target created but not yet configured deploys cleanly and
 // says what it would have had to work with, instead of failing with an error
 // about a command nobody has written yet.
 //
-//go:embed reload.sh.tmpl
-var reloadTemplate string
+//go:embed install.sh.tmpl
+var installTemplate string
 
 // fallbackVersion is what this build reports when it carries no module version
 // of its own, which is every build made straight from a checkout rather than
@@ -40,12 +40,16 @@ func Version() string {
 	return v
 }
 
-// Describe answers OpDescribe. This declaration is the only place generic-cli's
+// The declaration below is the only place generic-cli's
 // settings are defined: the Agent reports it
 // verbatim at install time and the Server resolves every value against it, so
 // nothing here is repeated Server-side.
-func Describe() DescribeResponse {
-	return DescribeResponse{
+// Discover answers with what this Plugin is and declares. It sees nothing on
+// the host by construction: it parses no configuration, so it has no
+// installation point to report and nothing to warn about, and both lists are
+// empty rather than absent so the answer says so explicitly.
+func Discover() DiscoverResponse {
+	return DiscoverResponse{
 		ContractVersion: ContractVersion,
 		Name:            Name,
 		Version:         Version(),
@@ -55,8 +59,13 @@ func Describe() DescribeResponse {
 			"calling another tool, this Plugin can do. A service that has a Plugin of its " +
 			"own is better served by that one.",
 		Settings: []SettingDeclaration{{
-			Key:   "reload",
-			Label: "Reload command",
+			Key: SettingInstall,
+			// "Install command", not "Reload command", because reloading is
+			// the last thing this script does and not the whole of it: the
+			// Plugin writes the material to temporary files, and copying
+			// whichever of them the service reads to where it expects them is
+			// this command's job too. The old label named the smaller half.
+			Label: "Install command",
 			// The variables are named one per line rather than described as a
 			// group: they are what the command is written against, and a
 			// reader has to know which file holds what before they can write
@@ -91,9 +100,11 @@ func Describe() DescribeResponse {
 			// a Target with no command installs nothing and must not pretend
 			// otherwise. The template default keeps a fresh Target deployable
 			// while making plain that it has not been configured yet.
-			Default:  reloadTemplate,
+			Default:  installTemplate,
 			Required: true,
 			Summary:  false,
 		}},
+		DiscoveredTargets: []DiscoveredTarget{},
+		Warnings:          []string{},
 	}
 }

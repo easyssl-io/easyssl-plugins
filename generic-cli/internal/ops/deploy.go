@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,37 +28,43 @@ const (
 	materialMode os.FileMode = 0o644
 )
 
-// Install performs one Certificate installation.
+// Deploy carries out one Deployment: it writes the Certificate where the
+// service reads it and reloads that service.
+//
+// Named for the operation it answers rather than for the act, so the word is
+// the same one the Deployment record, the Server route and the Agent's package
+// all use. What it does to the Certificate is still installing it, which is
+// what the `install` setting below is called.
 //
 // It writes the material to files inside the run's working directory, runs the
-// reload command with the four paths in its environment, and removes those
+// install command with the four paths in its environment, and removes those
 // files whatever happened — including when the command fails, which is the case
 // that matters: a failed install must not leave a private key on disk. The
 // Agent removes the whole working directory after every run, which is what
 // also cleans up a run it had to kill; this cleanup is the Plugin doing its own
 // half rather than relying on that.
 //
-// The returned response always describes the attempt: OK is the command's
-// exit 0, and Output is one text carrying what the command printed, because the
-// command ran inside this Plugin and only this answer crosses back.
-func Install(ctx context.Context, req InstallRequest) InstallResponse {
-	var out strings.Builder
-	fmt.Fprintf(&out, "%s %s · install\n", Name, Version())
+// There is no response document. The exit status is the answer — nil here, a
+// non-zero exit from main — and what happened is on stdout and stderr, which
+// the Agent records in the order it received them. So this Plugin's narration
+// and the install command's output are one transcript, and the command's stderr
+// arrives as stderr rather than as a labeled line inside a string, which is
+// what lets the Agent set it apart on screen.
+func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) error {
+	fmt.Fprintf(stdout, "%s %s · deploy\n", Name, Version())
 
-	command, ok := req.Settings["reload"]
+	command, ok := req.Settings[SettingInstall]
 	if !ok || strings.TrimSpace(command) == "" {
 		// The Server refuses to queue a Deployment whose required settings have
 		// no value, so reaching here means something upstream is wrong rather
 		// than that the user forgot; say so plainly instead of running nothing
 		// and reporting success.
-		out.WriteString("install failed: no reload command was supplied, and this Plugin installs nothing by itself\n")
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return errors.New("no install command was supplied, and this Plugin installs nothing by itself")
 	}
 
 	dir, cleanupDir, err := workDir(req.WorkDir)
 	if err != nil {
-		fmt.Fprintf(&out, "install failed: could not prepare the working directory: %v\n", err)
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return fmt.Errorf("could not prepare the working directory: %w", err)
 	}
 	if cleanupDir != nil {
 		defer cleanupDir()
@@ -68,12 +75,11 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 	// can still have left the key.
 	defer removeAll(paths)
 	if err != nil {
-		fmt.Fprintf(&out, "install failed: could not write the certificate material: %v\n", err)
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
+		return fmt.Errorf("could not write the certificate material: %w", err)
 	}
 
-	fmt.Fprintf(&out, "wrote the certificate, chain, fullchain and key to %s\n", dir)
-	out.WriteString("running the reload command\n")
+	fmt.Fprintf(stdout, "wrote the certificate, chain, fullchain and key to %s\n", dir)
+	fmt.Fprintln(stdout, "running the install command")
 
 	// /bin/sh -c, so the command may be a multi-line script and use anything a
 	// shell offers. The script is on the shell's argv, which is the operator's
@@ -103,21 +109,21 @@ func Install(ctx context.Context, req InstallRequest) InstallResponse {
 		"EASYSSL_FULLCHAIN_PATH="+paths[fullchainFile],
 		"EASYSSL_KEY_PATH="+paths[keyFile],
 	)
-	// Combined, because a reload command's diagnostics are as much of the
-	// record as its output and splitting them loses the order they happened in.
-	combined, runErr := cmd.CombinedOutput()
-	if len(combined) > 0 {
-		out.Write(combined)
-		if combined[len(combined)-1] != '\n' {
-			out.WriteByte('\n')
-		}
+	// Straight through. The install command's stdout is this Plugin's stdout and
+	// its stderr is this Plugin's stderr, so the Agent records both in the order
+	// it received them and can set the second apart on screen. Nothing is
+	// labeled here any more: this Plugin prefixed each line because one output
+	// string could not say which stream a line came from, and that is no longer
+	// the shape the answer takes.
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	if runErr := cmd.Run(); runErr != nil {
+		// Only the returned error, which main writes to stderr. Saying it on
+		// stdout as well put the same sentence in the transcript twice, once
+		// in each stream, which is what the two-stream shape makes visible.
+		return fmt.Errorf("the install command %s", describeExit(runErr))
 	}
-	if runErr != nil {
-		fmt.Fprintf(&out, "install failed: the reload command %s\n", describeExit(runErr))
-		return InstallResponse{ContractVersion: ContractVersion, OK: false, Output: out.String()}
-	}
-	out.WriteString("install succeeded: the reload command exited 0\n")
-	return InstallResponse{ContractVersion: ContractVersion, OK: true, Output: out.String()}
+	fmt.Fprintln(stdout, "deploy succeeded: the install command exited 0")
+	return nil
 }
 
 // workDir resolves where this run writes. The Agent supplies one it will
@@ -141,7 +147,7 @@ func workDir(supplied string) (string, func(), error) {
 // writeMaterial writes the four files and returns their paths by name. It
 // returns whatever it managed to write alongside any error, so the caller can
 // remove a partial set.
-func writeMaterial(dir string, req InstallRequest) (map[string]string, error) {
+func writeMaterial(dir string, req DeployRequest) (map[string]string, error) {
 	paths := map[string]string{
 		certificateFile: filepath.Join(dir, certificateFile),
 		chainFile:       filepath.Join(dir, chainFile),
@@ -187,7 +193,7 @@ func removeAll(paths map[string]string) {
 }
 
 // describeExit turns the command's error into the phrase that reads naturally
-// after "the reload command".
+// after "the install command".
 func describeExit(err error) string {
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {

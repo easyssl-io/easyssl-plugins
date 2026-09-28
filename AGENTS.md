@@ -31,9 +31,9 @@ things follow, and both are easy to break by accident:
 - **A Plugin runs with the Agent's privileges**, which on most hosts means root.
   It writes private keys and restarts services. Treat every input as
   attacker-influenced: paths arrive from users and from parsed host
-  configuration, and reload commands are user-supplied strings.
+  configuration, and install commands are user-supplied strings.
 - **A command a Plugin runs for the user fails on its first failing line.**
-  `generic-cli` runs the reload command under `/bin/sh -e`, because a script's
+  `generic-cli` runs the install command under `/bin/sh -e`, because a script's
   own exit status is only its last line's: `ls /missing; echo done` exits 0,
   and a Deployment marked succeeded with nothing installed is the one outcome
   a Plugin must never produce. A line allowed to fail says so with `|| true`;
