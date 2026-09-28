@@ -166,13 +166,13 @@ func decide(in *instance) {
 	in.Test = testCommand(in)
 	if unit := systemdUnit(in.PID); unit != "" {
 		if systemctlShow(unit, "ExecReload") != "" {
-			in.Reload = "systemctl reload " + unit
+			in.Reload = "systemctl reload " + shellQuote(unit)
 			return
 		}
 	}
 
 	if svc := openrcService(in.PID); svc != "" {
-		in.Reload = "rc-service " + svc + " reload"
+		in.Reload = "rc-service " + shellQuote(svc) + " reload"
 		return
 	}
 
@@ -198,9 +198,22 @@ func testCommand(in *instance) string {
 // compiled default, in which case naming it would be harmless but wrong.
 func withConfig(in *instance) string {
 	if in.ConfigPath != "" && in.ConfigPath != compiledConfig(in.Exe) {
-		return fmt.Sprintf("%s -c %s", in.Exe, in.ConfigPath)
+		return shellQuote(in.Exe) + " -c " + shellQuote(in.ConfigPath)
 	}
-	return in.Exe
+	return shellQuote(in.Exe)
+}
+
+// shellQuote makes one word of s for the `/bin/sh -e -c` the test and reload
+// settings run through. The paths and names come from a running process on
+// the host, and nginx can be started by any user with any path, so a path is
+// attacker-influenced while the command runs as root: a space would split it
+// and a `;` would run what follows. A plain word is left as it is, so the
+// usual command still reads as one would type it.
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./-@:+,=") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // systemdUnit reads the unit name out of the process's cgroup. This asks which
