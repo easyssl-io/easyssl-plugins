@@ -61,32 +61,40 @@ func Version() string {
 // declarations is the only place this Plugin's settings are defined: the
 // Agent reports them verbatim and the Server resolves every value against
 // them.
+//
+// The first two labels are nginx's directive names, which a reader looks for
+// in nginx.conf as written, so they are literals and the same in every
+// language. Everything else here is prose and is translated.
 func declarations() []SettingDeclaration {
 	return []SettingDeclaration{
 		{
-			Key: SettingCertificate, Label: "ssl_certificate", Type: plugincontract.SettingTypePath,
+			Key: SettingCertificate, Label: literal("ssl_certificate"), Type: plugincontract.SettingTypePath,
 			Required: true, Identity: true, Summary: true,
-			Description: "The file nginx reads the Certificate from, written as the Certificate followed by its chain. " +
-				"A discovered Target names the file nginx actually loads, with symlinks followed.",
+			Description: T("nginx.setting.ssl_certificate.description",
+				"The file nginx reads the Certificate from, written as the Certificate followed by its chain. "+
+					"A discovered Target names the file nginx actually loads, with symlinks followed."),
 		},
 		{
-			Key: SettingKey, Label: "ssl_certificate_key", Type: plugincontract.SettingTypePath,
+			Key: SettingKey, Label: literal("ssl_certificate_key"), Type: plugincontract.SettingTypePath,
 			Required: true,
-			Description: "The file nginx reads the private key from.\n\n" +
-				"Both files keep the permissions, owner and SELinux label of the files they replace; a new file is `0600`.",
+			Description: T("nginx.setting.ssl_certificate_key.description",
+				"The file nginx reads the private key from.\n\n"+
+					"Both files keep the permissions, owner and SELinux label of the files they replace; a new file is `0600`."),
 		},
 		{
-			Key: SettingTest, Label: "Test command", Type: plugincontract.SettingTypeCommand,
+			Key: SettingTest, Label: T("nginx.setting.test.label", "Test command"), Type: plugincontract.SettingTypeCommand,
 			Required: true, Default: "nginx -t",
-			Description: "Checks the configuration after the files are written and before the reload. " +
-				"When it fails, the previous files are put back and nothing is reloaded. " +
-				"A discovered Target names the instance's own binary and configuration.",
+			Description: T("nginx.setting.test.description",
+				"Checks the configuration after the files are written and before the reload. "+
+					"When it fails, the previous files are put back and nothing is reloaded. "+
+					"A discovered Target names the instance's own binary and configuration."),
 		},
 		{
-			Key: SettingReload, Label: "Reload command", Type: plugincontract.SettingTypeCommand,
+			Key: SettingReload, Label: T("nginx.setting.reload.label", "Reload command"), Type: plugincontract.SettingTypeCommand,
 			Required: true, Default: "nginx -s reload",
-			Description: "Makes nginx load the new files. A discovered Target names the command its instance answers to: " +
-				"its systemd unit's reload, its OpenRC service's, or the signal.",
+			Description: T("nginx.setting.reload.description",
+				"Makes nginx load the new files. A discovered Target names the command its instance answers to: "+
+					"its systemd unit's reload, its OpenRC service's, or the signal."),
 		},
 	}
 }

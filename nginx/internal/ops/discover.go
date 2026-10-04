@@ -10,6 +10,7 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,6 +20,7 @@ import (
 
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
 
+	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/wire"
 )
 
@@ -37,16 +39,17 @@ func Discover() DiscoverResponse {
 		ContractVersion: plugincontractVersion,
 		Name:            Name,
 		Version:         Version(),
-		Description: "Installs Certificates into nginx. It finds the certificates every running nginx serves, " +
-			"and installs a new one by writing the files, testing the configuration with `nginx -t` " +
-			"and reloading only when that passes.",
+		Description: T("nginx.description",
+			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
+				"and installs a new one by writing the files, testing the configuration with `nginx -t` "+
+				"and reloading only when that passes."),
 		Settings:          declarations(),
 		DiscoveredTargets: []DiscoveredTarget{},
-		Warnings:          []string{},
+		Warnings:          []l10n.Text{},
 	}
 	found, err := scan()
 	if err != nil {
-		resp.Warnings = append(resp.Warnings, err.Error())
+		resp.Warnings = append(resp.Warnings, textOf(err))
 		return resp
 	}
 	resp.DiscoveredTargets, resp.Warnings = analyze(found)
@@ -112,15 +115,19 @@ type Certificate struct {
 // analyze turns the instances into discovered Targets and warnings. Every
 // discovered Target belongs to exactly one master, because a file read by two
 // leaves the list (warnShared), so "its reload" is well defined.
-func analyze(found []instance) ([]DiscoveredTarget, []string) {
+//
+// A warning is one whole message per language. What was found on the host
+// (a path, a pid, a command, a location) and what nginx or a parser said in
+// its own words go in as values and are the same in every language.
+func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
-	targets, warnings := []DiscoveredTarget{}, []string{}
+	targets, warnings := []DiscoveredTarget{}, []l10n.Text{}
 	reload, test := map[int]string{}, map[int]string{}
 	var refs []CertRef
 	for _, in := range found {
 		reload[in.PID], test[in.PID] = in.Reload, in.Test
 		if in.CertsErr != nil {
-			warnings = append(warnings, fmt.Sprintf("`pid %d` (`%s`, config `%s`): %v", in.PID, in.Exe, or(in.ConfigPath, "unknown"), in.CertsErr))
+			warnings = append(warnings, warnInstance(in))
 			continue
 		}
 		for _, c := range in.Certs {
@@ -130,7 +137,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []string) {
 	}
 	grouped, conflicts := group(refs)
 	for _, c := range grouped {
-		if w := warnShared(c, found); w != "" {
+		if w := warnShared(c, found); len(w) != 0 {
 			warnings = append(warnings, w)
 			continue
 		}
@@ -152,14 +159,20 @@ func analyze(found []instance) ([]DiscoveredTarget, []string) {
 			}
 			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType, SHA256: c.SHA256}
 		}
-		if c.SANErr != nil {
-			warnings = append(warnings, fmt.Sprintf("`%s`: its names could not be read, so none are reported: %v", c.Path, c.SANErr))
+		if errors.Is(c.SANErr, errNoCertificate) {
+			warnings = append(warnings, T("nginx.warning.no_certificate",
+				"`{path}`: its names could not be read, so none are reported: the file holds no PEM certificate",
+				"path", c.Path))
+		} else if c.SANErr != nil {
+			warnings = append(warnings, T("nginx.warning.names_unreadable",
+				"`{path}`: its names could not be read, so none are reported: {error}",
+				"path", c.Path, "error", c.SANErr))
 		}
 		var lines []string
 		for _, r := range c.Refs {
 			lines = append(lines, fmt.Sprintf("`pid %d:%s:%d`", r.PID, r.File, r.Line))
 		}
-		t.PluginExtraData = []ExtraDatum{{Label: "Locations", Value: strings.Join(lines, "\n")}}
+		t.PluginExtraData = []ExtraDatum{{Label: T("nginx.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
 	}
 	for _, c := range conflicts {
@@ -175,13 +188,37 @@ func or(s, alt string) string {
 	return s
 }
 
+// warnInstance describes a master whose configuration gave no certificates,
+// by why: it has no configuration this could find, nginx itself refuses the
+// one it has, or the parser could not read it.
+func warnInstance(in instance) l10n.Text {
+	var rejected *rejectedError
+	switch {
+	case errors.Is(in.CertsErr, errNoConfiguration):
+		return T("nginx.warning.no_configuration",
+			"`pid {pid}` (`{exe}`): no configuration path known for this instance",
+			"pid", in.PID, "exe", in.Exe)
+	case errors.As(in.CertsErr, &rejected) && rejected.reason == "":
+		return T("nginx.warning.configuration_rejected_no_reason",
+			"`pid {pid}` (`{exe}`, config `{config}`): nginx rejects this configuration, so it was not parsed: configuration test failed",
+			"pid", in.PID, "exe", in.Exe, "config", in.ConfigPath)
+	case rejected != nil:
+		return T("nginx.warning.configuration_rejected",
+			"`pid {pid}` (`{exe}`, config `{config}`): nginx rejects this configuration, so it was not parsed: {reason}",
+			"pid", in.PID, "exe", in.Exe, "config", in.ConfigPath, "reason", rejected.reason)
+	}
+	return T("nginx.warning.configuration_unreadable",
+		"`pid {pid}` (`{exe}`, config `{config}`): {error}",
+		"pid", in.PID, "exe", in.Exe, "config", in.ConfigPath, "error", in.CertsErr)
+}
+
 // warnShared describes a certificate file read by more than one master, or
-// returns "" when exactly one reads it. Such a file is kept out of the list
+// returns no text when exactly one reads it. Such a file is kept out of the list
 // entirely: a renewal that writes it is complete only once every master that
 // reads it has been reloaded, and there is no single reload command for that,
 // so an entry naming the file would look like one thing to renew and be wrong.
 // The way out is structural, which is what the warning recommends.
-func warnShared(c Certificate, found []instance) string {
+func warnShared(c Certificate, found []instance) l10n.Text {
 	// Instances in the order the locations list them, each once, with the
 	// places in each that name the file.
 	var pids []int
@@ -193,29 +230,35 @@ func warnShared(c Certificate, found []instance) string {
 		where[r.PID] = append(where[r.PID], fmt.Sprintf("`%s:%d`", r.File, r.Line))
 	}
 	if len(pids) < 2 {
-		return ""
+		return nil
 	}
 	reload := map[int]string{}
 	for _, in := range found {
 		reload[in.PID] = in.Reload
 	}
-	var parts []string
-	for _, pid := range pids {
-		parts = append(parts, fmt.Sprintf("`pid %d`, reloaded with `%s`, at %s",
-			pid, reload[pid], strings.Join(where[pid], ", ")))
-	}
-	return fmt.Sprintf("`%s` is read by %d nginx instances (%s) and is not listed. A renewal "+
-		"written there takes effect only in the instances reloaded afterwards, and the rest keep "+
-		"serving the previous certificate from memory while the file on disk no longer shows it. "+
-		"Give each instance its own copy of the certificate and key under a path only it reads, "+
-		"so that each can be renewed and reloaded on its own.",
-		c.Path, len(pids), strings.Join(parts, "; "))
+	// Each instance in the list is worded ("reloaded with", "at"), so the
+	// list is built once per language rather than passed in as one value.
+	return perLanguage(func(p l10n.Printer) string {
+		var parts []string
+		for _, pid := range pids {
+			parts = append(parts, p.T("nginx.warning.shared_certificate.instance",
+				"`pid {pid}`, reloaded with `{reload}`, at {locations}",
+				"pid", pid, "reload", reload[pid], "locations", strings.Join(where[pid], ", ")))
+		}
+		return p.T("nginx.warning.shared_certificate",
+			"`{path}` is read by {count} nginx instances ({instances}) and is not listed. A renewal "+
+				"written there takes effect only in the instances reloaded afterwards, and the rest keep "+
+				"serving the previous certificate from memory while the file on disk no longer shows it. "+
+				"Give each instance its own copy of the certificate and key under a path only it reads, "+
+				"so that each can be renewed and reloaded on its own.",
+			"path", c.Path, "count", len(pids), "instances", strings.Join(parts, "; "))
+	})
 }
 
 // warnKeyConflict describes a certificate whose occurrences name different key
 // files. It points at the ssl_certificate_key lines rather than the
 // ssl_certificate ones, since those are what have to be reconciled.
-func warnKeyConflict(c Certificate) string {
+func warnKeyConflict(c Certificate) l10n.Text {
 	// One entry per distinct key file, in the order first seen, each with the
 	// places that name it.
 	var order []string
@@ -226,20 +269,30 @@ func warnKeyConflict(c Certificate) string {
 		}
 		where[r.KeyResolved] = append(where[r.KeyResolved], fmt.Sprintf("`pid %d` `%s:%d`", r.PID, r.File, r.KeyLine))
 	}
-	var parts []string
-	for _, k := range order {
-		parts = append(parts, fmt.Sprintf("`%s` (at %s)", k, strings.Join(where[k], ", ")))
-	}
-
-	advice := "The keys differ, so at least one of these servers is not running the configuration " +
-		"on disk: nginx refuses a certificate and key that do not match."
-	if sameContent(order) {
-		advice = "All of these keys hold the same bytes, so point every one of them at a single " +
-			"file: a renewal that writes only one leaves the others stale, and the next reload " +
-			"then fails on a key that no longer matches its certificate."
-	}
-	return fmt.Sprintf("`%s` is used with %d different key files: %s. %s",
-		c.Path, len(order), strings.Join(parts, "; "), advice)
+	same := sameContent(order)
+	return perLanguage(func(p l10n.Printer) string {
+		var parts []string
+		for _, k := range order {
+			parts = append(parts, p.T("nginx.warning.key_conflict.key",
+				"`{key}` (at {locations})",
+				"key", k, "locations", strings.Join(where[k], ", ")))
+		}
+		// Two whole messages rather than one sentence with advice appended:
+		// which advice applies changes what the reader is being told.
+		if same {
+			return p.T("nginx.warning.key_conflict.same_bytes",
+				"`{path}` is used with {count} different key files: {keys}. "+
+					"All of these keys hold the same bytes, so point every one of them at a single "+
+					"file: a renewal that writes only one leaves the others stale, and the next reload "+
+					"then fails on a key that no longer matches its certificate.",
+				"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
+		}
+		return p.T("nginx.warning.key_conflict.different",
+			"`{path}` is used with {count} different key files: {keys}. "+
+				"The keys differ, so at least one of these servers is not running the configuration "+
+				"on disk: nginx refuses a certificate and key that do not match.",
+			"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
+	})
 }
 
 // sameContent reports whether every path holds identical bytes. A key is a few
@@ -261,6 +314,10 @@ func sameContent(paths []string) bool {
 	return true
 }
 
+// errNoConfiguration is a master whose configuration file could not be told
+// from its command line or its binary.
+var errNoConfiguration = errors.New("no configuration path known for this instance")
+
 // certificates parses one instance's configuration and returns every
 // ssl_certificate in it.
 //
@@ -281,7 +338,7 @@ func sameContent(paths []string) bool {
 // certificate path needs, so crossplane is the better trade here.
 func certificates(gate func(exe, config string) error, exe, config string) ([]CertRef, error) {
 	if config == "" {
-		return nil, fmt.Errorf("no configuration path known for this instance")
+		return nil, errNoConfiguration
 	}
 	if err := gate(exe, config); err != nil {
 		return nil, err
@@ -631,8 +688,12 @@ func leafDER(path string) ([]byte, error) {
 		}
 		return blk.Bytes, nil
 	}
-	return nil, fmt.Errorf("no PEM certificate in %s", path)
+	return nil, fmt.Errorf("%w in %s", errNoCertificate, path)
 }
+
+// errNoCertificate is a file with no certificate in it, named apart from the
+// errors a parser produces so its warning can be worded in every language.
+var errNoCertificate = errors.New("no PEM certificate")
 
 // oidSubjectAltName is 2.5.29.17.
 var oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}

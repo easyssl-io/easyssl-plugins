@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
+	"github.com/easyssl-io/easyssl-contract/plugincontract"
 	"github.com/easyssl-io/easyssl-plugins/generic-cli/internal/ops"
 )
 
@@ -53,10 +55,27 @@ func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
 			t.Fatalf("the default template never mentions %s, so it does not show what a script has to work with", want)
 		}
 	}
-	if s.Label == "" || s.Description == "" {
+	if s.Label["en"] == "" || s.Description["en"] == "" || d.Description["en"] == "" {
 		t.Fatal("the declaration is what the web console renders; it needs a label and a description")
 	}
+	// Every text travels in every language, since nobody knows yet who will
+	// read it: a Spanish text that merely repeats the English is a
+	// translation that never loaded.
+	for name, text := range map[string]map[string]string{"description": d.Description, "label": s.Label, "setting description": s.Description} {
+		if text["es"] == "" || text["es"] == text["en"] {
+			t.Fatalf("the %s has no Spanish of its own: %q", name, text["es"])
+		}
+	}
+	if !strings.Contains(s.Description["es"], "`EASYSSL_KEY_PATH`") {
+		t.Fatal("the Spanish description lost a literal the English names")
+	}
+	if err := plugincontract.ValidateDiscover(d); err != nil {
+		t.Fatalf("the Agent would refuse this answer: %v", err)
+	}
 }
+
+// Every message has its translation and every translation its message.
+func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
 
 // The default template must succeed while installing nothing: that is what
 // lets a Target be created and deployed before anyone writes a real command.

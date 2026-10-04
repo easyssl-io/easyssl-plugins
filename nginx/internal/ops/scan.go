@@ -23,11 +23,13 @@ import (
 // every worker, and signalling a worker reloads nothing.
 func scan() ([]instance, error) {
 	if os.Geteuid() != 0 {
-		return nil, fmt.Errorf("discovery needs root, to read which binary each nginx master runs")
+		return nil, worded{T("nginx.warning.needs_root",
+			"discovery needs root, to read which binary each nginx master runs")}
 	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
-		return nil, fmt.Errorf("reading /proc (discovery is Linux-only): %w", err)
+		return nil, worded{T("nginx.warning.proc_unreadable",
+			"reading /proc (discovery is Linux-only): {error}", "error", err)}
 	}
 	var out []instance
 	for _, e := range entries {
@@ -82,7 +84,8 @@ func accepted(exe, config string) error {
 	}
 	// nginx puts the reason on stderr, one [emerg] line, followed by a summary.
 	// The first is the useful one; the rest repeats that the test failed.
-	msg := "configuration test failed"
+	// With no such line there is no reason of nginx's own to quote.
+	msg := ""
 	for _, line := range strings.Split(string(out), "\n") {
 		if i := strings.Index(line, "[emerg]"); i >= 0 {
 			msg = strings.TrimSpace(line[i+len("[emerg]"):])
@@ -93,7 +96,15 @@ func accepted(exe, config string) error {
 			break
 		}
 	}
-	return fmt.Errorf("nginx rejects this configuration, so it was not parsed: %s", msg)
+	return &rejectedError{reason: msg}
+}
+
+// rejectedError is nginx refusing a configuration. reason is nginx's own
+// text, kept as nginx wrote it, and empty when it gave none.
+type rejectedError struct{ reason string }
+
+func (e *rejectedError) Error() string {
+	return "nginx rejects this configuration, so it was not parsed: " + or(e.reason, "configuration test failed")
 }
 
 func procFile(pid int, name string) string {
