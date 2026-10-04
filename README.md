@@ -18,6 +18,18 @@ touching the Agent.
 
 Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Per-module release tags (`generic-cli/v1.2.0`) also match how the catalog versions each artifact separately.
 
+## Languages
+
+What a plugin says to a reader (its description, each setting's label and
+description, its discovery warnings) is declared in every language the plugin
+carries, as an object of language code to text with English (`en`) always
+present. Whoever shows the text picks its reader's language and falls back to
+English. Each plugin holds its own translations in `internal/ops/locales/`,
+one file per language, embedded in the executable.
+
+What a plugin found or ran is not translated: paths, commands, setting keys
+and values, a program's own error text, and everything a deployment prints.
+
 ## Build
 
 There is no module at the repository root, so build from a plugin's own directory:

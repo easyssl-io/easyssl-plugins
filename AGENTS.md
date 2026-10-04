@@ -42,6 +42,36 @@ things follow, and both are easy to break by accident:
   or `||`, or inside a pipeline, so a command that must fail goes on its own
   line, and everything that promises fail-fast says so.
 
+## Text a reader sees
+
+Everything `discover` answers for a person to read is text per language
+(`l10n.Text` from the contract module): the Plugin's description, each
+setting's label and description, every warning and every extra-data label.
+English is required; an answer holding a text without it is refused as
+malformed. A Plugin answers in every language at once, because the answer is
+stored and read later by people who do not share one.
+
+To add or change a text:
+
+- Call `T("<id>", "<English>", "name", value, ...)` from `internal/ops`. The
+  ID is explicit, prefixed by the Plugin and named for where the text appears
+  (`nginx.setting.reload.description`, `nginx.warning.shared_certificate`),
+  never derived from the English. The English is a string literal at the call.
+- Add the Spanish under the same ID in `internal/ops/locales/es.json`, with
+  the same `{name}` placeholders and the same Markdown spans around the same
+  literals.
+- One sentence is one message. Values found on the host go in as
+  placeholders; translated fragments are never joined. When a value is itself
+  worded (a list whose items say "reloaded with"), build the message once per
+  language, as `perLanguage` does in `nginx`.
+- `TestCatalog` in each `internal/ops` fails on a message with no translation,
+  a translation no message uses, and placeholders that differ.
+
+Not translated, and left exactly as produced: what `deploy` prints while it
+runs, a program's or a parser's own error text, setting keys, values and
+defaults, paths, commands, and a label that is itself a literal, such as the
+directive name `ssl_certificate`, which is English alone.
+
 ## Dependencies
 
 Prefer the Go standard library. A Plugin ships to every host that installs it

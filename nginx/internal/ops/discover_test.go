@@ -3,14 +3,17 @@ package ops
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
+	"github.com/easyssl-io/easyssl-contract/plugincontract"
 )
 
-// One host with every configuration case the Discovery test cases table
-// (S12) holds that parsing alone decides, each named by the port the fixture
+// One host with every configuration case that parsing alone decides, each named by the port the fixture
 // scripts give it. What needs a running nginx (the gate's own verdict, the
 // reload command per init system) is scan's and is not here.
 func hostTree(t *testing.T) (string, map[string]material) {
@@ -141,7 +144,7 @@ func keyTypeOf(t DiscoveredTarget) string {
 
 func extra(s DiscoveredTarget, label string) string {
 	for _, d := range s.PluginExtraData {
-		if d.Label == label {
+		if d.Label["en"] == label {
 			return d.Value
 		}
 	}
@@ -250,6 +253,12 @@ func TestDiscoverCases(t *testing.T) {
 			t.Fatalf("no key-conflict warning saying the bytes match: %q", warnings)
 		}
 	})
+	t.Run("the locations label is translated, its value is not", func(t *testing.T) {
+		d := got[ssl+"confd.crt"].PluginExtraData[0]
+		if d.Label["en"] != "Locations" || d.Label["es"] != "Ubicaciones" {
+			t.Fatalf("label %q", d.Label)
+		}
+	})
 	t.Run("settings carry the instance's commands", func(t *testing.T) {
 		s := got[ssl+"confd.crt"]
 		if s.PluginSettings[SettingTest] != "/usr/sbin/nginx -t" || s.PluginSettings[SettingReload] != "systemctl reload nginx.service" {
@@ -258,7 +267,7 @@ func TestDiscoverCases(t *testing.T) {
 	})
 	t.Run("unchanged host, identical answer", func(t *testing.T) {
 		again, againWarnings := analyze([]instance{load(t, 100, config)})
-		if !equalTargets(targets, again) || !slices.Equal(warnings, againWarnings) {
+		if !equalTargets(targets, again) || !slices.EqualFunc(warnings, againWarnings, maps.Equal[l10n.Text, l10n.Text]) {
 			t.Fatal("two runs on an unchanged host disagree")
 		}
 	})
@@ -280,8 +289,23 @@ func TestSharedCertificateIsAWarning(t *testing.T) {
 	if len(targets) != 0 {
 		t.Fatalf("a certificate read by two masters was suggested: %+v", targets)
 	}
-	if !hasWarning(warnings, "read by 2 nginx instances", "nginx-second.service") {
+	if !hasWarning(warnings, "read by 2 nginx instances", "`pid 200`, reloaded with `systemctl reload nginx-second.service`, at `") {
 		t.Fatalf("warnings %q", warnings)
+	}
+	// The same warning in Spanish: the sentence and the words inside each
+	// listed instance are translated, and what was found on the host is not.
+	es := warnings[0]["es"]
+	for _, want := range []string{
+		"lo leen 2 instancias de nginx",
+		"`pid 200`, que se recarga con `systemctl reload nginx-second.service`, en `" + root + "/two/nginx.conf:1`",
+		"`" + root + "/shared.crt`",
+	} {
+		if !strings.Contains(es, want) {
+			t.Errorf("the Spanish warning lacks %q: %s", want, es)
+		}
+	}
+	if es == warnings[0]["en"] || strings.Contains(es, "reloaded with") || strings.Contains(es, "{") {
+		t.Errorf("the Spanish warning is not wholly Spanish: %s", es)
 	}
 }
 
@@ -294,11 +318,15 @@ func TestRejectedConfigurationIsAWarning(t *testing.T) {
 	replaceRoot(t, root, "nginx.conf")
 	in := instance{PID: 7, Exe: "/usr/sbin/nginx", ConfigPath: root + "/nginx.conf"}
 	in.Certs, in.CertsErr = certificates(func(string, string) error {
-		return errors.New(`nginx rejects this configuration, so it was not parsed: cannot load certificate "/missing.crt"`)
+		return &rejectedError{reason: `cannot load certificate "/missing.crt"`}
 	}, in.Exe, in.ConfigPath)
 	targets, warnings := analyze([]instance{in})
-	if len(targets) != 0 || !hasWarning(warnings, "pid 7", "/missing.crt") {
+	if len(targets) != 0 || !hasWarning(warnings, "pid 7", "nginx rejects this configuration", `cannot load certificate "/missing.crt"`) {
 		t.Fatalf("targets %+v, warnings %q", targets, warnings)
+	}
+	// nginx's own reason is quoted as nginx wrote it, in every language.
+	if es := warnings[0]["es"]; !strings.Contains(es, "nginx rechaza esta configuración") || !strings.Contains(es, `cannot load certificate "/missing.crt"`) {
+		t.Fatalf("Spanish warning %q", es)
 	}
 }
 
@@ -314,13 +342,35 @@ func TestDiscoverDeclaresFourSettings(t *testing.T) {
 	if !d[0].Identity || !d[0].Summary || d[1].Identity {
 		t.Fatal("ssl_certificate alone must be the identity and the summary")
 	}
+	// A directive name is a literal and is not translated; everything else
+	// has Spanish of its own.
+	for _, s := range d[:2] {
+		if len(s.Label) != 1 || s.Label["en"] != s.Key {
+			t.Errorf("the label of %s is %q, want the directive name in English alone", s.Key, s.Label)
+		}
+	}
+	for _, s := range d {
+		if s.Description["es"] == "" || s.Description["es"] == s.Description["en"] {
+			t.Errorf("the description of %s has no Spanish of its own", s.Key)
+		}
+	}
+	if d[3].Label["en"] != "Reload command" || d[3].Label["es"] != "Comando de recarga" {
+		t.Errorf("reload label %q", d[3].Label)
+	}
+	if err := plugincontract.ValidateSettings(d); err != nil {
+		t.Fatal(err)
+	}
 }
 
-func hasWarning(warnings []string, parts ...string) bool {
+// Every message has its translation and every translation its message.
+func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
+
+// hasWarning reports whether one warning's English text holds every part.
+func hasWarning(warnings []l10n.Text, parts ...string) bool {
 	for _, w := range warnings {
 		ok := true
 		for _, p := range parts {
-			ok = ok && strings.Contains(w, p)
+			ok = ok && strings.Contains(w["en"], p)
 		}
 		if ok {
 			return true
