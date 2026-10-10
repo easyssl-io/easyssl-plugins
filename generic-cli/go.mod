@@ -1,6 +1,6 @@
 module github.com/easyssl-io/easyssl-plugins/generic-cli
 
-go 1.26.6
+go 1.26.9
 
 require github.com/easyssl-io/easyssl-contract v0.0.1
 
