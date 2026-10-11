@@ -13,9 +13,10 @@ import (
 	"github.com/easyssl-io/easyssl-contract/plugincontract"
 )
 
-// One host with every configuration case that parsing alone decides, each named by the port the fixture
-// scripts give it. What needs a running nginx (the gate's own verdict, the
-// reload command per init system) is scan's and is not here.
+// One host with every configuration case that parsing alone decides, each named
+// by the port the fixture scripts give it. What needs a running nginx (the
+// gate's own verdict, the reload command per init system) is scan's and is not
+// here.
 func hostTree(t *testing.T) (string, map[string]material) {
 	t.Helper()
 	m := map[string]material{
@@ -362,7 +363,6 @@ func TestDiscoverDeclaresFourSettings(t *testing.T) {
 	}
 }
 
-// Every message has its translation and every translation its message.
 func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
 
 // hasWarning reports whether one warning's English text holds every part.

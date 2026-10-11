@@ -2,11 +2,10 @@
 // every running nginx master serves, and installs a Certificate at one of them
 // by writing the files, testing the configuration and reloading.
 //
-// It builds to a standalone executable that an Agent fetches and then drives
-// over stdio: the operation name is the single argv argument, the JSON request
-// rides stdin and the answer is the exit status. Nothing sensitive is ever on
-// argv or in this process's own environment, because /proc/<pid>/cmdline is
-// world-readable and the private key must not be.
+// An Agent drives it over stdio: the operation name is the single argv
+// argument, the JSON request rides stdin and the answer is the exit status.
+// Nothing sensitive is ever on argv or in this process's own environment,
+// because /proc/<pid>/cmdline is world-readable.
 package main
 
 import (
@@ -48,9 +47,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err := readJSON(stdin, &req); err != nil {
 			return fmt.Errorf("reading the deploy request: %w", err)
 		}
-		// No response document: the exit status is the answer. An error here
-		// becomes a non-zero exit in main, and everything the run had to say is
-		// already on the two streams.
+		// No response document: the exit status is the answer, and everything the run
+		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
 	default:
 		// An operation this build does not implement. The Agent treats the

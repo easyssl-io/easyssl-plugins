@@ -1,8 +1,7 @@
 // Package ops implements the nginx Plugin's two operations, discover and
-// deploy. main.go is only the stdio framing.
-//
-// The request and response shapes come from the shared plugincontract package,
-// so a field added on the Agent's side cannot be silently ignored here.
+// deploy; main.go is only the stdio framing. The request and response shapes
+// are the shared plugincontract types, so a field added on the Agent's side
+// cannot be silently ignored here.
 package ops
 
 import (

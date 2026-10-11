@@ -59,21 +59,19 @@ func scan() ([]instance, error) {
 // accepted asks the instance's own binary whether it would load this
 // configuration, and refuses to go further when it would not.
 //
-// The reason is that a rejected configuration describes nothing real. nginx
-// will not load it, so it is not what the master is serving; and the master is
-// still serving whatever it loaded last, which is no longer on disk. Parsing it
-// anyway produces a list of certificates that belongs to neither state, and the
-// list looks exactly like a correct one. On this host a single missing
-// certificate file put the whole configuration in that condition while every
-// other entry in it still parsed and reported cleanly.
+// A rejected configuration describes nothing real: nginx will not load it, and
+// the master is still serving whatever it loaded last, which is no longer on
+// disk. Parsing it anyway produces a list of certificates that belongs to
+// neither state and looks exactly like a correct one. A single missing
+// certificate file puts the whole configuration in that condition while every
+// other entry still parses cleanly.
 //
-// The gate is deliberately one-directional, which is the only reason it is
-// sound. A failure is trustworthy: `nginx -t` runs outside the service's
-// sandbox and so can see at least as much of the filesystem as the master, so a
-// file it cannot open is a file the master cannot open either. A pass proves
-// less — the master may run with PrivateTmp=yes and see a smaller filesystem,
-// which is how a reload can fail on a host where `nginx -t` just succeeded. So
-// this refuses on failure and does not promise anything on success.
+// The gate is one-directional. A failure is trustworthy: `nginx -t` runs
+// outside the service's sandbox and can see at least as much of the filesystem
+// as the master, so a file it cannot open is a file the master cannot open
+// either. A pass proves less: the master may run with PrivateTmp=yes and see a
+// smaller filesystem, which is how a reload can fail on a host where `nginx -t`
+// just succeeded.
 //
 // The instance's own binary and its own -c are used, since a second nginx on
 // the host may be a different build with different compiled-in paths.
@@ -252,22 +250,19 @@ func systemctlShow(unit, prop string) string {
 
 // openrcService finds the started OpenRC service that owns this master, or "".
 //
-// Identity comes from the pid file OpenRC itself recorded when it started the
-// daemon, never from the text of an init script. Reading the script was wrong
-// twice over: a service is identified by what it is running, not by what its
-// source happens to mention, and a single comment naming /usr/sbin/nginx in
-// /etc/init.d/apache2 was enough to make apache2 answer for nginx — it sorts
-// first, so it won.
+// Identity comes from the pid file OpenRC recorded when it started the daemon,
+// never from the text of an init script: a single comment naming
+// /usr/sbin/nginx in /etc/init.d/apache2 was enough to make apache2 answer for
+// nginx, since it sorts first.
 //
 // OpenRC writes /run/openrc/options/<svc>/pidfile for every service it started
 // through start-stop-daemon, and /run/openrc/daemons/<svc>/NNN carries the same
-// value on older versions. Whichever exists, the file it names holds the pid of
-// the master OpenRC is supervising: if that is our pid, this is our service,
-// and no other service can claim it.
+// value on older versions. The file it names holds the pid of the master OpenRC
+// is supervising: if that is our pid, this is our service.
 //
-// Services with no pid file are skipped rather than guessed at. That excludes
-// every one-shot (hostname, localmount, sysctl), which is correct — a service
-// with no daemon has nothing to reload.
+// Services with no pid file are skipped rather than guessed at, which excludes
+// every one-shot (hostname, localmount, sysctl): a service with no daemon has
+// nothing to reload.
 func openrcService(pid int) string {
 	started, err := os.ReadDir("/run/openrc/started")
 	if err != nil {

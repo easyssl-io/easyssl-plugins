@@ -26,9 +26,8 @@ import (
 
 // Discovery, in two halves. scan.go finds the running nginx masters and asks
 // each for its reload and test commands; this file parses what each one loads
-// and turns it into discovered Targets and warnings. The split is what lets the
-// tests run every configuration case against real files without a running
-// nginx.
+// and turns it into discovered Targets and warnings, so the tests run every
+// configuration case against real files without a running nginx.
 
 // Discover answers with the declarations and what this host's nginx serves.
 // A host with no nginx, or one this Plugin cannot inspect, answers with the
@@ -213,11 +212,10 @@ func warnInstance(in instance) l10n.Text {
 }
 
 // warnShared describes a certificate file read by more than one master, or
-// returns no text when exactly one reads it. Such a file is kept out of the list
-// entirely: a renewal that writes it is complete only once every master that
-// reads it has been reloaded, and there is no single reload command for that,
-// so an entry naming the file would look like one thing to renew and be wrong.
-// The way out is structural, which is what the warning recommends.
+// returns no text when exactly one reads it. Such a file is kept out of the
+// list: a renewal that writes it is complete only once every master that reads
+// it has been reloaded, and there is no single reload command for that. The
+// warning recommends the structural way out.
 func warnShared(c Certificate, found []instance) l10n.Text {
 	// Instances in the order the locations list them, each once, with the
 	// places in each that name the file.
@@ -322,20 +320,15 @@ var errNoConfiguration = errors.New("no configuration path known for this instan
 // ssl_certificate in it.
 //
 // The parsing is nginx-go-crossplane's, NGINX's own Go port of crossplane,
-// rather than a grep. Three properties of a real configuration make a
-// line-oriented scan wrong, and all three are present on the test hosts: a
-// whole server block may sit on one physical line, so a directive is not at the
-// start of one; an `include` may pull in files from anywhere, so the set of
-// files is not knowable without resolving them; and a `#` comment or an
-// unreferenced snippet can carry an ssl_certificate that nginx never loads, so
-// the filesystem holds more than the configuration does.
+// rather than a grep, because a line-oriented scan is wrong in three ways: a
+// whole server block may sit on one physical line; an `include` may pull in
+// files from anywhere; and a `#` comment or an unreferenced snippet can carry
+// an ssl_certificate that nginx never loads.
 //
-// It parses the files rather than asking the running master, which is worth
-// stating because it is a real limitation: `nginx -T` would be nginx's own
-// resolution of the same question, but it prints only file contents, so it
-// cannot attribute a directive to a file and line, and it cannot show anything
-// injected with -g either. Attribution is what a tool that later has to EDIT a
-// certificate path needs, so crossplane is the better trade here.
+// It parses the files rather than asking the running master, which is a real
+// limitation. `nginx -T` prints only file contents, so it cannot attribute a
+// directive to a file and line, which a tool that later has to edit a
+// certificate path needs, and it cannot show anything injected with -g either.
 func certificates(gate func(exe, config string) error, exe, config string) ([]CertRef, error) {
 	if config == "" {
 		return nil, errNoConfiguration
@@ -429,24 +422,20 @@ type block struct {
 // pair matches each certificate in a block with the key nginx will actually use
 // for it.
 //
-// nginx itself pairs by position — ngx_ssl_certificates walks cert[i] with
-// key[i] — but position is not the whole rule, because what nginx hands those
-// pairs to is not positional. OpenSSL keeps one slot per key algorithm:
-// SSL_CTX_use_certificate files a certificate by its own type and
-// SSL_CTX_use_PrivateKey files a key by its own type. A block declaring an
-// ECDSA and an RSA certificate with the two keys in the opposite order is
-// therefore accepted and works, because each file lands in the slot for its
-// algorithm and the crossing cancels out. nginx does not warn, and cannot:
-// from its point of view nothing is wrong.
+// nginx pairs by position (ngx_ssl_certificates walks cert[i] with key[i]), but
+// OpenSSL keeps one slot per key algorithm: SSL_CTX_use_certificate files a
+// certificate by its own type and SSL_CTX_use_PrivateKey files a key by its own
+// type. A block declaring an ECDSA and an RSA certificate with the two keys in
+// the opposite order is therefore accepted and works, and nginx does not warn.
 //
 // So certificates and keys are grouped by algorithm and paired within each
-// group, which is what OpenSSL ends up doing. Where every certificate in a
-// block shares one algorithm this is exactly positional pairing, and there the
-// order does matter: two RSA certificates with their keys swapped is a hard
-// failure at load, verified as "key values mismatch".
+// group. Where every certificate in a block shares one algorithm this is
+// exactly positional pairing, and there the order does matter: two RSA
+// certificates with their keys swapped is a hard failure at load, verified as
+// "key values mismatch".
 //
-// Position is the fallback whenever an algorithm cannot be determined — an
-// unreadable file, an unsupported key type — since it is what nginx wrote down
+// Position is the fallback whenever an algorithm cannot be determined (an
+// unreadable file, an unsupported key type), since it is what nginx wrote down
 // and is right whenever the block is uniform.
 func pair(b block) []CertRef {
 	certAlg := make([]x509.PublicKeyAlgorithm, len(b.certs))
@@ -552,20 +541,18 @@ func algorithmOf(k any) x509.PublicKeyAlgorithm {
 
 // resolve turns an ssl_certificate value into the real file it names.
 //
-// Two steps, and both are needed. First the path is made absolute against the
-// right base, which is NOT the prefix compiled into the binary or given with
-// -p: nginx has two, and ssl_certificate uses the second. Its handler calls
-// ngx_conf_full_name(cf->cycle, file, 1), and that last argument selects
-// cycle->conf_prefix — the directory holding the file named by -c. On the test
-// host the two are genuinely different: the packaged binary's prefix is
-// /usr/share/nginx while one instance runs it against a config in
-// /opt/nginx-third, and resolving against the prefix sends the lookup to a
-// path nginx never opens.
+// First the path is made absolute against the right base, which is NOT the
+// prefix compiled into the binary or given with -p: the ssl_certificate handler
+// calls ngx_conf_full_name(cf->cycle, file, 1), and that last argument selects
+// cycle->conf_prefix, the directory holding the file named by -c. On the test
+// host the packaged binary's prefix is /usr/share/nginx while one instance runs
+// it against a config in /opt/nginx-third, and resolving against the prefix
+// sends the lookup to a path nginx never opens.
 //
 // Then symlinks are evaluated, which also collapses ".", ".." and doubled
-// slashes. Both halves are required and neither substitutes for the other:
-// EvalSymlinks alone leaves a relative path relative, and lexical cleaning
-// alone cannot see through the live/archive symlink farm certbot creates.
+// slashes. Neither step substitutes for the other: EvalSymlinks alone leaves a
+// relative path relative, and lexical cleaning alone cannot see through the
+// live/archive symlink farm certbot creates.
 func resolve(value, config string) (string, error) {
 	p := value
 	if !filepath.IsAbs(p) {
@@ -631,24 +618,20 @@ func group(refs []CertRef) (kept, conflicts []Certificate) {
 }
 
 // sans reads a certificate file and returns the subject alternative names of
-// its leaf, in the order the extension encodes them.
-//
-// Only the first certificate in the file is read. An ssl_certificate commonly
-// points at a fullchain, where the leaf comes first and the issuers follow, and
-// the issuers' names are not what this server answers for.
+// its leaf, in the order the extension encodes them. Only the first certificate
+// in the file is read: an ssl_certificate commonly points at a fullchain, where
+// the leaf comes first, and the issuers' names are not what this server answers
+// for.
 //
 // The extension is decoded here rather than read from crypto/x509's DNSNames
-// and IPAddresses. Those are two separate slices, so the interleaving is lost
-// the moment the certificate is parsed: a SAN encoded DNS, IP, DNS comes back
-// as two names and one address with nothing recording that the address sat
-// between them, and any reassembly is a guess. Appending the addresses after
-// the names was that guess, and a certificate on the test host encoded in
-// exactly that order proved it wrong.
+// and IPAddresses, which are two separate slices: a SAN encoded DNS, IP, DNS
+// comes back as two names and one address with nothing recording that the
+// address sat between them. A certificate on the test host encoded in exactly
+// that order proved appending the addresses after the names wrong.
 //
-// Only dNSName and iPAddress are reported. The other GeneralName choices —
-// rfc822Name, uniformResourceIdentifier, otherName — are valid in the same
-// extension but do not name a TLS server, and leaving them out keeps this a
-// list of hostnames.
+// Only dNSName and iPAddress are reported. The other GeneralName choices
+// (rfc822Name, uniformResourceIdentifier, otherName) are valid in the same
+// extension but do not name a TLS server.
 func sans(path string) ([]string, error) {
 	leaf, err := leafOf(path)
 	if err != nil {
@@ -657,11 +640,9 @@ func sans(path string) ([]string, error) {
 	return generalNames(leaf)
 }
 
-// leafOf parses the first certificate in a PEM file.
-//
-// Only the first, because ssl_certificate commonly points at a fullchain where
-// the leaf comes first and the issuers follow, and an issuer is neither what
-// the server answers for nor what its key belongs to.
+// leafOf parses the first certificate in a PEM file: ssl_certificate commonly
+// points at a fullchain where the leaf comes first, and an issuer is neither
+// what the server answers for nor what its key belongs to.
 func leafOf(path string) (*x509.Certificate, error) {
 	der, err := leafDER(path)
 	if err != nil {
