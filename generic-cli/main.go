@@ -4,7 +4,8 @@
 // configuration, so it works with anything a shell can reload.
 //
 // An Agent drives it over stdio: the operation name is the single argv
-// argument, the JSON request rides stdin and the answer is the exit status.
+// argument, the JSON request rides stdin, and the answer is the exit status,
+// with `discover` also writing a JSON document to stdout.
 // Nothing sensitive is ever on argv or in this process's own environment,
 // because /proc/<pid>/cmdline is world-readable.
 package main
