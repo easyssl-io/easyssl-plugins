@@ -14,11 +14,7 @@ import (
 )
 
 // The Agent↔Plugin stdio contract test. It exercises the properties the
-// contract rests on rather than every branch: what describe declares, that
-// install really writes the four files at the right modes and really removes
-// them however the command ends, that the four paths reach the command's
-// environment, that a non-zero exit is a failed Deployment with its output
-// kept, and that no key material is ever on a command line.
+// contract rests on rather than every branch.
 
 const (
 	testCert  = "-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----"
@@ -44,9 +40,8 @@ func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
 	if s.Summary {
 		t.Fatal("reload is marked summary; an unlabeled Target would then be known by a whole script")
 	}
-	// Required *with* a default that runs: the command is the whole of the
-	// installation, so a Target that has not been configured must still deploy
-	// cleanly rather than being refused at the queue.
+	// Required with a default that runs, so a Target that has not been configured
+	// still deploys cleanly rather than being refused at the queue.
 	if s.Default == "" {
 		t.Fatal("reload has an empty default, which would make every fresh Target undeployable")
 	}
@@ -58,9 +53,8 @@ func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
 	if s.Label["en"] == "" || s.Description["en"] == "" || d.Description["en"] == "" {
 		t.Fatal("the declaration is what the web console renders; it needs a label and a description")
 	}
-	// Every text travels in every language, since nobody knows yet who will
-	// read it: a Spanish text that merely repeats the English is a
-	// translation that never loaded.
+	// A Spanish text that merely repeats the English is a translation that never
+	// loaded.
 	for name, text := range map[string]map[string]string{"description": d.Description, "label": s.Label, "setting description": s.Description} {
 		if text["es"] == "" || text["es"] == text["en"] {
 			t.Fatalf("the %s has no Spanish of its own: %q", name, text["es"])
@@ -74,7 +68,6 @@ func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
 	}
 }
 
-// Every message has its translation and every translation its message.
 func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
 
 // The default template must succeed while installing nothing: that is what
@@ -148,11 +141,9 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
 	}
 }
 
-// A failed install command fails the Deployment, and everything it printed is kept.
-// The Plugin exits non-zero for it, which used to be reserved for the Plugin
-// itself breaking: there is no `ok` field left to say one while the exit status
-// says the other, and which of the two happened is said in the transcript, by
-// the Plugin, in words.
+// A failed install command fails the Deployment, and everything it printed is
+// kept. The Plugin exits non-zero for it, as it does when the Plugin itself
+// breaks; the transcript says which happened.
 func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
@@ -179,10 +170,8 @@ func TestInstallReportsAFailedCommandWithItsOutput(t *testing.T) {
 	}
 }
 
-// A script's exit status is its last line's, so without -e this script exits 0
-// and the failed ls two lines up is invisible: a Deployment marked succeeded
-// with nothing installed, which is the one outcome this Plugin must not
-// produce. The reload runs under /bin/sh -e precisely so this reports failure.
+// Without -e this script exits 0 and the failed ls two lines up is invisible: a
+// Deployment marked succeeded with nothing installed.
 func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
@@ -201,10 +190,9 @@ func TestInstallFailsOnAFailingLineEvenWhenALaterLineExitsZero(t *testing.T) {
 }
 
 // POSIX -e does not act on a failure on the left of && or ||, so this script
-// exits 0 although cp failed and nothing was reloaded. This test records the
-// limit that the description and the template state, so that a change to the
-// invocation that closes it has a test to turn around, and a change that
-// widens it is noticed.
+// exits 0 although cp failed and nothing was reloaded. This records the limit
+// the description and the template state, so a change to the invocation that
+// closes or widens it is noticed.
 func TestInstallCannotSeeAFailureOnTheLeftOfAnAndOrList(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
@@ -258,8 +246,6 @@ func TestNoKeyMaterialOnAnyCommandLine(t *testing.T) {
 	}
 }
 
-// A Deployment whose install command is missing is refused rather than reported
-// as a success that installed nothing.
 func TestInstallWithoutACommandFails(t *testing.T) {
 	dir := t.TempDir()
 	for _, settings := range []map[string]string{nil, {}, {ops.SettingInstall: "   "}} {
@@ -311,9 +297,9 @@ func request(workDir, command string) ops.DeployRequest {
 	}
 }
 
-// requirePOSIXShell skips where /bin/sh is not the contract's shell. The
-// Plugin runs on the hosts an Agent runs on, which are POSIX; this keeps the
-// suite honest about that rather than silently passing elsewhere.
+// requirePOSIXShell skips where /bin/sh is not the contract's shell, rather
+// than silently passing: the Plugin runs on the hosts an Agent runs on, which
+// are POSIX.
 func requirePOSIXShell(t *testing.T) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -357,13 +343,10 @@ func readDuring(record, key string) string {
 	return rest
 }
 
-// install runs the operation the way the Agent does — two streams and an exit
-// status, no response document — and gathers what a test wants to assert on.
-//
-// Combined is the two streams together, in the order this Plugin wrote them,
-// which is what the Agent records and the web console shows. Most assertions
-// here are about "did the transcript keep this", and splitting them per stream
-// would say less, not more.
+// deployResult is what a test asserts on after running the operation the way
+// the Agent does: two streams and an exit status. Combined is the two streams
+// together, in the order this Plugin wrote them, which is what the Agent
+// records and the web console shows.
 type deployResult struct {
 	OK  bool
 	Out string

@@ -10,19 +10,16 @@ import (
 
 // installTemplate is the default value of the one setting this Plugin declares.
 // It succeeds while installing nothing: it prints where the material was put
-// and returns 0, so a Target created but not yet configured deploys cleanly and
-// says what it would have had to work with, instead of failing with an error
-// about a command nobody has written yet.
+// and returns 0, so a Target created but not yet configured deploys cleanly.
 //
 //go:embed install.sh.tmpl
 var installTemplate string
 
 // fallbackVersion is what this build reports when it carries no module version
-// of its own, which is every build made straight from a checkout rather than
-// through the module proxy. The catalog and the digest are what actually
-// identify an artifact; this is the human-readable label beside them. A
-// distribution catalog publishing this checkout must use the same fallback
-// version, and both values move together.
+// of its own, which is every build made straight from a checkout. The catalog
+// and the digest identify an artifact; this is the human-readable label beside
+// them. A distribution catalog publishing this checkout must use the same
+// value, and both move together.
 const fallbackVersion = "0.0.1"
 
 // Version reports this build's version: the module version stamped into the
@@ -42,14 +39,11 @@ func Version() string {
 	return v
 }
 
-// The declaration below is the only place generic-cli's
-// settings are defined: the Agent reports it
-// verbatim at install time and the Server resolves every value against it, so
-// nothing here is repeated Server-side.
-// Discover answers with what this Plugin is and declares. It sees nothing on
-// the host by construction: it parses no configuration, so it has no
-// installation point to report and nothing to warn about, and both lists are
-// empty rather than absent so the answer says so explicitly.
+// Discover answers with what this Plugin is and declares. It parses no
+// configuration, so it has no installation point to report and nothing to warn
+// about, and both lists are empty rather than absent. The declaration below is
+// the only place generic-cli's settings are defined: the Agent reports it
+// verbatim and the Server resolves every value against it.
 func Discover() DiscoverResponse {
 	return DiscoverResponse{
 		ContractVersion: ContractVersion,
@@ -62,20 +56,15 @@ func Discover() DiscoverResponse {
 			"own is better served by that one."),
 		Settings: []SettingDeclaration{{
 			Key: SettingInstall,
-			// "Install command", not "Reload command", because reloading is
-			// the last thing this script does and not the whole of it: the
-			// Plugin writes the material to temporary files, and copying
-			// whichever of them the service reads to where it expects them is
-			// this command's job too. The old label named the smaller half.
+			// "Install command", not "Reload command", because reloading is the last
+			// thing this script does and not the whole of it: copying the material from
+			// the temporary files to where the service reads it is this command's job
+			// too.
 			Label: T("generic_cli.setting.install.label", "Install command"),
-			// The variables are named one per line rather than described as a
-			// group: they are what the command is written against, and a
-			// reader has to know which file holds what before they can write
-			// one. The web console renders the newlines.
-			// Written in the Markdown subset the contract allows for a description:
-			// backticks around anything a reader would type or look for, so the
-			// web console sets it as code rather than running it into the sentence.
-			// Every translation keeps the same spans around the same literals.
+			// The variables are named one per line because they are what the command is
+			// written against; the web console renders the newlines. Backticks go around
+			// anything a reader would type or look for, and every translation keeps the
+			// same spans around the same literals.
 			Description: T("generic_cli.setting.install.description", "The command that installs a new Certificate on this Target and reloads "+
 				"the service that uses it. Before running it, easySSL writes the material to "+
 				"temporary files and passes their paths in the environment, deleting them once the "+
@@ -98,11 +87,10 @@ func Discover() DiscoverResponse {
 				"`EASYSSL_KEY_PATH`: the private key. It is the only one written 0600, and it exists "+
 				"only while the command runs."),
 			Type: SettingTypeCommand,
-			// Required with a default that runs: the command is the whole of
-			// the installation, since this Plugin writes nothing of its own, so
-			// a Target with no command installs nothing and must not pretend
-			// otherwise. The template default keeps a fresh Target deployable
-			// while making plain that it has not been configured yet.
+			// Required with a default that runs: this Plugin writes nothing of its own,
+			// so a Target with no command installs nothing and must not pretend
+			// otherwise. The template default keeps a fresh Target deployable while
+			// making plain that it has not been configured yet.
 			Default:  installTemplate,
 			Required: true,
 			Summary:  false,

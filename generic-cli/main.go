@@ -1,14 +1,12 @@
-// Command generic-cli is the general-purpose easySSL plugin: it writes the
+// Command generic-cli is the general-purpose easySSL Plugin: it writes the
 // certificate material to temporary files and runs the command it is given,
 // with those paths in that command's environment. It parses no server
-// configuration and knows nothing about any particular server software, which
-// is what makes it the one plugin that works with anything a shell can reload.
+// configuration, so it works with anything a shell can reload.
 //
-// It builds to a standalone executable that an Agent fetches and then drives
-// over stdio: the operation name is the single argv argument, the JSON request
-// rides stdin and the answer is the exit status. Nothing sensitive is ever on
-// argv or in this process's own environment, because /proc/<pid>/cmdline is
-// world-readable and the private key must not be.
+// An Agent drives it over stdio: the operation name is the single argv
+// argument, the JSON request rides stdin and the answer is the exit status.
+// Nothing sensitive is ever on argv or in this process's own environment,
+// because /proc/<pid>/cmdline is world-readable.
 package main
 
 import (
@@ -22,10 +20,9 @@ import (
 	"github.com/easyssl-io/easyssl-plugins/generic-cli/internal/ops"
 )
 
-// maxRequest bounds what is read from stdin. A certificate, its chain and a key
-// are a few kilobytes and an install script is text, so this is generous for
-// both while stopping a malformed or hostile caller from making the Plugin
-// allocate freely.
+// maxRequest bounds what is read from stdin, so a malformed or hostile caller
+// cannot make the Plugin allocate freely. A certificate, its chain and a key
+// are a few kilobytes and an install script is text, so this is generous.
 const maxRequest = 1 << 20
 
 func main() {
@@ -51,9 +48,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err := readJSON(stdin, &req); err != nil {
 			return fmt.Errorf("reading the deploy request: %w", err)
 		}
-		// No response document: the exit status is the answer. An error here
-		// becomes a non-zero exit in main, and everything the run had to say is
-		// already on the two streams.
+		// No response document: the exit status is the answer, and everything the run
+		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
 	default:
 		// An operation this build does not implement. The Agent treats the
