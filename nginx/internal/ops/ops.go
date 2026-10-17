@@ -1,5 +1,5 @@
-// Package ops implements the nginx Plugin's two operations, discover and
-// deploy; main.go is only the stdio framing. The request and response shapes
+// Package ops implements the nginx Plugin's three operations, describe,
+// discover and deploy; main.go is only the stdio framing. The request and response shapes
 // are the shared plugincontract types, so a field added on the Agent's side
 // cannot be silently ignored here.
 package ops
@@ -16,11 +16,12 @@ const (
 	// under. It is identity: a Target's settings are stored against it.
 	Name = "nginx"
 
+	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
 
 	// The four settings, keyed by nginx's own directive names so a reader
-	// with nginx.conf open needs no translation. Constants because discover
+	// with nginx.conf open needs no translation. Constants because describe
 	// declares them and deploy reads them, and a key is identity: values are
 	// stored against it.
 	SettingCertificate = "ssl_certificate"
@@ -31,6 +32,7 @@ const (
 
 type (
 	SettingDeclaration    = plugincontract.SettingDeclaration
+	DescribeResponse      = plugincontract.DescribeResponse
 	DiscoverResponse      = plugincontract.DiscoverResponse
 	DiscoveredTarget      = plugincontract.DiscoveredTarget
 	DiscoveredCertificate = plugincontract.DiscoveredCertificate

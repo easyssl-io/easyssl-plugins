@@ -29,12 +29,10 @@ import (
 // and turns it into discovered Targets and warnings, so the tests run every
 // configuration case against real files without a running nginx.
 
-// Discover answers with the declarations and what this host's nginx serves.
-// A host with no nginx, or one this Plugin cannot inspect, answers with the
-// declarations and no discovered Targets: discover never fails for what it
-// finds.
-func Discover() DiscoverResponse {
-	resp := DiscoverResponse{
+// Describe answers with what this Plugin is and declares, reading nothing
+// from the host.
+func Describe() DescribeResponse {
+	return DescribeResponse{
 		ContractVersion: plugincontractVersion,
 		Name:            Name,
 		Version:         Version(),
@@ -42,7 +40,16 @@ func Discover() DiscoverResponse {
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
 				"and installs a new one by writing the files, testing the configuration with `nginx -t` "+
 				"and reloading only when that passes."),
-		Settings:          declarations(),
+		Settings: declarations(),
+	}
+}
+
+// Discover answers with what this host's nginx serves. A host with no nginx,
+// or one this Plugin cannot inspect, answers with no discovered Targets:
+// discover never fails for what it finds.
+func Discover() DiscoverResponse {
+	resp := DiscoverResponse{
+		ContractVersion:   plugincontractVersion,
 		DiscoveredTargets: []DiscoveredTarget{},
 		Warnings:          []l10n.Text{},
 	}

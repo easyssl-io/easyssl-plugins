@@ -39,13 +39,12 @@ func Version() string {
 	return v
 }
 
-// Discover answers with what this Plugin is and declares. It parses no
-// configuration, so it has no installation point to report and nothing to warn
-// about, and both lists are empty rather than absent. The declaration below is
-// the only place generic-cli's settings are defined: the Agent reports it
-// verbatim and the Server resolves every value against it.
-func Discover() DiscoverResponse {
-	return DiscoverResponse{
+// Describe answers with what this Plugin is and declares. The declaration below
+// is the only place generic-cli's settings are defined: the Agent reports it
+// verbatim, the Marketplace shows it, and the Server resolves every value
+// against it.
+func Describe() DescribeResponse {
+	return DescribeResponse{
 		ContractVersion: ContractVersion,
 		Name:            Name,
 		Version:         Version(),
@@ -95,6 +94,14 @@ func Discover() DiscoverResponse {
 			Required: true,
 			Summary:  false,
 		}},
+	}
+}
+
+// Discover parses no configuration, so it has no installation point to report
+// and nothing to warn about, and both lists are empty rather than absent.
+func Discover() DiscoverResponse {
+	return DiscoverResponse{
+		ContractVersion:   ContractVersion,
 		DiscoveredTargets: []DiscoveredTarget{},
 		Warnings:          []l10n.Text{},
 	}
