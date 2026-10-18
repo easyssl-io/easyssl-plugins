@@ -1,0 +1,4 @@
+@ROOT@/G/g1.crt cert-ec,7d7f28bc
+@ROOT@/G/g1.key key,7d7f28bc
+@ROOT@/G/g2.crt cert-ec,10b2b763
+@ROOT@/G/g2.key key,10b2b763

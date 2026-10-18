@@ -1,0 +1,4 @@
+@ROOT@/AB/ab.crt cert-ec,1260d8a2
+@ROOT@/AB/ab.key key,1260d8a2
+@ROOT@/AB/abv.crt cert-ec,b91bcc31
+@ROOT@/AB/abv.key key,b91bcc31

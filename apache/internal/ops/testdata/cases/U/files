@@ -1,0 +1,4 @@
+@ROOT@/U/uec.crt cert-ec,e3f14bca
+@ROOT@/U/uec.key key,e3f14bca
+@ROOT@/U/ursa.crt cert-rsa,3cfc1d73
+@ROOT@/U/ursa.key key,3cfc1d73

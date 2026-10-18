@@ -1,0 +1,8 @@
+VirtualHost configuration:
+*:9479                 is a NameVirtualHost
+         default server y1.test (@ROOT@/Y/httpd.conf:21)
+         port 9479 namevhost y1.test (@ROOT@/Y/httpd.conf:21)
+                 wild alias *.y.test
+         port 9479 namevhost www.y.test (@ROOT@/Y/httpd.conf:28)
+         port 9479 namevhost y1.test (@ROOT@/Y/httpd.conf:34)
+                 wild alias *.y3.test

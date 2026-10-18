@@ -1,0 +1,4 @@
+@ROOT@/K/k1.crt cert-rsa,f812f363
+@ROOT@/K/k1.key key,f812f363
+@ROOT@/K/k2.crt cert-rsa,b477a088
+@ROOT@/K/k2.key key,b477a088

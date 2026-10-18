@@ -1,0 +1,42 @@
+# In file: @ROOT@/AB/httpd.conf
+#   7:
+User daemon
+#   8:
+Group daemon
+#   9:
+ServerName localhost
+#  10:
+StartServers 1
+#  11:
+ServerLimit 1
+#  12:
+ThreadsPerChild 4
+#  13:
+MinSpareThreads 1
+#  14:
+MaxSpareThreads 4
+#  15:
+MaxRequestWorkers 4
+#  16:
+PidFile @ROOT@/AB/httpd.pid
+#  17:
+ErrorLog @ROOT@/AB/error_log
+#  19:
+DocumentRoot @ROOT@/AB
+#  20:
+Listen 9482
+#  21:
+SSLCertificateFile @ROOT@/AB/ab.crt
+#  22:
+SSLCertificateKeyFile @ROOT@/AB/ab.key
+#  23:
+<VirtualHost *:9482>
+  #  24:
+  ServerName abv.test
+  #  25:
+  SSLEngine on
+  #  26:
+  SSLCertificateFile @ROOT@/AB/abv.crt
+  #  27:
+  SSLCertificateKeyFile @ROOT@/AB/abv.key
+</VirtualHost>

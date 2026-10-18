@@ -1,0 +1,2 @@
+VirtualHost configuration:
+*:9470                 u.test (@ROOT@/U/httpd.conf:21)

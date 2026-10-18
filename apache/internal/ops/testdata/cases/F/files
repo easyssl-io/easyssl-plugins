@@ -1,0 +1,4 @@
+@ROOT@/F/f1.crt cert-ec,37503636
+@ROOT@/F/f1.key key,37503636
+@ROOT@/F/f2.crt cert-ec,b36a1c63
+@ROOT@/F/f2.key key,b36a1c63

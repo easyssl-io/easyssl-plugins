@@ -1,0 +1,8 @@
+VirtualHost configuration:
+*:9443                 is a NameVirtualHost
+         default server c1.test (@ROOT@/C/httpd.conf:21)
+         port 9443 namevhost c1.test (@ROOT@/C/httpd.conf:21)
+                 alias c2.test
+         port 9443 namevhost c2.test (@ROOT@/C/httpd.conf:28)
+         port 9443 namevhost c1.test (@ROOT@/C/httpd.conf:34)
+                 alias c3.test

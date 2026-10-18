@@ -1,0 +1,5 @@
+VirtualHost configuration:
+*:9446                 is a NameVirtualHost
+         default server localhost (@ROOT@/F/httpd.conf:21)
+         port 9446 namevhost localhost (@ROOT@/F/httpd.conf:21)
+         port 9446 namevhost localhost (@ROOT@/F/httpd.conf:26)

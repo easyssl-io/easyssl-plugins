@@ -1,0 +1,6 @@
+@ROOT@/C/c1.crt cert-ec,8384928e
+@ROOT@/C/c1.key key,8384928e
+@ROOT@/C/c2.crt cert-ec,6d7ec978
+@ROOT@/C/c2.key key,6d7ec978
+@ROOT@/C/c3.crt cert-ec,c003fe81
+@ROOT@/C/c3.key key,c003fe81

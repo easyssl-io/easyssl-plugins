@@ -1,0 +1,5 @@
+VirtualHost configuration:
+*:9442                 is a NameVirtualHost
+         default server dup.test (@ROOT@/B/httpd.conf:21)
+         port 9442 namevhost dup.test (@ROOT@/B/httpd.conf:21)
+         port 9442 namevhost dup.test (@ROOT@/B/httpd.conf:27)

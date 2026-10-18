@@ -1,0 +1,36 @@
+# In file: @ROOT@/T/httpd.conf
+#   7:
+User daemon
+#   8:
+Group daemon
+#   9:
+ServerName localhost
+#  10:
+StartServers 1
+#  11:
+ServerLimit 1
+#  12:
+ThreadsPerChild 4
+#  13:
+MinSpareThreads 1
+#  14:
+MaxSpareThreads 4
+#  15:
+MaxRequestWorkers 4
+#  16:
+PidFile @ROOT@/T/httpd.pid
+#  17:
+ErrorLog @ROOT@/T/error_log
+#  19:
+DocumentRoot @ROOT@/T
+#  20:
+Listen 9460
+#  21:
+<VirtualHost *:9460>
+  #  22:
+  ServerName t.test
+  #  23:
+  SSLEngine on
+  #  24:
+  SSLCertificateFile @ROOT@/T/t.crt
+</VirtualHost>

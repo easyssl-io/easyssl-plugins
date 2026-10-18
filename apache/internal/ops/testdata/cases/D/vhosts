@@ -1,0 +1,5 @@
+VirtualHost configuration:
+*:9444                 is a NameVirtualHost
+         default server d1.test (@ROOT@/D/httpd.conf:21)
+         port 9444 namevhost d1.test (@ROOT@/D/httpd.conf:21)
+         port 9444 namevhost 127.0.0.1 (@ROOT@/D/httpd.conf:27)
