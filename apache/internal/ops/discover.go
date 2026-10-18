@@ -123,6 +123,12 @@ func changedSince(m *master) []string {
 	return changed
 }
 
+// uriRe matches a URI where a file name would be: since httpd 2.4.42,
+// SSLCertificateFile and SSLCertificateKeyFile also take a PKCS #11 URI
+// ("pkcs11:token=...") naming an object in a token. A path never has a scheme
+// before its first slash.
+var uriRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:[^/]`)
+
 // location is one place a master loads a certificate file.
 type location struct {
 	m         *master
@@ -204,6 +210,21 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 		}
 		common = append(common, changes...)
 		for i, c := range certs {
+			named := []directive{c}
+			if i < len(keys) {
+				named = append(named, keys[i])
+			}
+			var uris []msg
+			for _, d := range named {
+				if uriRe.MatchString(d.args[0]) {
+					value, at := d.args[0], fmt.Sprintf("%s:%d", d.file, d.line)
+					uris = append(uris, func(p l10n.Printer) string {
+						return p.T("apache.problem.not_a_file",
+							"`{value}` (`{at}`) names a key or certificate held in a token rather than a file, so a Deployment has no file to write",
+							"value", value, "at", at)
+					})
+				}
+			}
 			l := &location{m: m, where: fmt.Sprintf("%s:%d", c.file, c.line), vhost: v,
 				certPath: resolveIn(s.root(m), c.args[0]), alg: infos[i].alg()}
 			for j, o := range certs {
@@ -218,6 +239,7 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 				l.endpoints = append(l.endpoints, e)
 			}
 			l.problems = append(l.problems, common...)
+			l.problems = append(l.problems, uris...)
 			if i < len(keys) {
 				l.keyPath = resolveIn(s.root(m), keys[i].args[0])
 			} else {

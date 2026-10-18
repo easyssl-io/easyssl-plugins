@@ -7,7 +7,6 @@
   "apache.setting.reload.label": "Comando de recarga",
   "apache.setting.reload.description": "Hace que Apache cargue los archivos nuevos. Un Destino descubierto nombra el comando al que responde su instancia: la recarga de su unidad systemd, la de su servicio OpenRC o un reinicio gradual (graceful) de la propia instancia.",
   "apache.extra.locations": "Ubicaciones",
-
   "apache.warning.needs_root": "el descubrimiento necesita root, para leer qué binario ejecuta cada proceso maestro de Apache y con qué entorno",
   "apache.warning.proc_unreadable": "no se pudo leer /proc (el descubrimiento solo funciona en Linux): {error}",
   "apache.warning.no_mod_info": "`pid {pid}` (`{exe}`): no se encontró `mod_info.so`, así que su configuración no puede leerse como la lee Apache, y no se informa nada de ella",
@@ -18,11 +17,9 @@
   "apache.warning.same_key_type": "{count} certificados {alg} en un mismo lugar ({places}): Apache sirve solo el último de cada tipo de clave, pero los carga todos en cada recarga. Deja un certificado por tipo de clave. No sugeridos: {certificates}.",
   "apache.warning.not_suggested": "`{path}` no se sugiere: {problems}.",
   "apache.warning.names_unreadable": "`{path}`: no pudieron leerse sus nombres, así que no se informa ninguno: {error}",
-
   "apache.collision.not_hostname": "`{vhost}` nunca recibe su nombre `{name}`, que no es un nombre de host, así que los clientes llegan sin SNI y reciben `{winner}`",
   "apache.collision.alias": "`{vhost}` nunca recibe su alias `{name}`, que toma `{winner}`",
   "apache.collision.name": "`{vhost}` nunca recibe su nombre `{name}`, que toma `{winner}`",
-
   "apache.problem.plain_default": "el host virtual de `{vhost}` está en `{address}`, cuyo host virtual por defecto (`{default}`) no usa TLS, así que ese puerto habla HTTP sin cifrar",
   "apache.problem.not_listened": "nada escucha donde podría alcanzarse el host virtual de `{vhost}` (`{address}`, sin un `Listen` que coincida), así que nunca se alcanza",
   "apache.problem.more_specific": "cada dirección en la que podría alcanzarse el host virtual de `{vhost}` pertenece a un host virtual más específico ({taken})",
@@ -45,5 +42,6 @@
   "apache.problem.acme_managed": "`{path}` está bajo `{dir}`, que gestiona otro cliente ACME, y ambos se sobrescribirían",
   "apache.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
   "apache.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",
-  "apache.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}"
+  "apache.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}",
+  "apache.problem.not_a_file": "`{value}` (`{at}`) nombra una clave o un certificado guardado en un token y no en un archivo, así que un Despliegue no tiene archivo que escribir"
 }

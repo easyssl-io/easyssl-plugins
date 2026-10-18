@@ -256,3 +256,16 @@ func TestShellQuote(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
+
+func TestURIRe(t *testing.T) {
+	for v, want := range map[string]bool{
+		"pkcs11:token=web;object=k;type=private": true,
+		"/etc/ssl/k.pem":                         false,
+		"conf/ssl/k.pem":                         false,
+		"C:/x.pem":                               false,
+	} {
+		if got := uriRe.MatchString(v); got != want {
+			t.Errorf("uriRe(%q) = %v, want %v", v, got, want)
+		}
+	}
+}
