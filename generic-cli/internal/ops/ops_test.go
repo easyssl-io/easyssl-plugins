@@ -22,16 +22,16 @@ const (
 	testKey   = "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
 )
 
-func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
-	d := ops.Discover()
+func TestDescribeDeclaresTheInstallCommand(t *testing.T) {
+	d := ops.Describe()
 	if d.ContractVersion != ops.ContractVersion || d.Name != "generic-cli" {
-		t.Fatalf("discover identity = %q %q", d.ContractVersion, d.Name)
+		t.Fatalf("describe identity = %q %q", d.ContractVersion, d.Name)
 	}
 	if d.Version == "" {
-		t.Fatal("discover reports no version")
+		t.Fatal("describe reports no version")
 	}
 	if len(d.Settings) != 1 {
-		t.Fatalf("discover declares %d settings, want exactly the install command", len(d.Settings))
+		t.Fatalf("describe declares %d settings, want exactly the install command", len(d.Settings))
 	}
 	s := d.Settings[0]
 	if s.Key != ops.SettingInstall || s.Type != ops.SettingTypeCommand || !s.Required {
@@ -63,7 +63,19 @@ func TestDiscoverDeclaresTheInstallCommand(t *testing.T) {
 	if !strings.Contains(s.Description["es"], "`EASYSSL_KEY_PATH`") {
 		t.Fatal("the Spanish description lost a literal the English names")
 	}
-	if err := plugincontract.ValidateDiscover(d); err != nil {
+	if err := plugincontract.ValidateDescribe(d); err != nil {
+		t.Fatalf("the Agent would refuse this answer: %v", err)
+	}
+}
+
+// generic-cli parses nothing, so discover reports two empty lists, never
+// absent ones, and the Agent accepts them against the declarations.
+func TestDiscoverReportsNothing(t *testing.T) {
+	d := ops.Discover()
+	if d.DiscoveredTargets == nil || len(d.DiscoveredTargets) != 0 || d.Warnings == nil || len(d.Warnings) != 0 {
+		t.Fatalf("discover = %+v, want two empty lists", d)
+	}
+	if err := plugincontract.ValidateDiscover(ops.Describe().Settings, d); err != nil {
 		t.Fatalf("the Agent would refuse this answer: %v", err)
 	}
 }
@@ -75,7 +87,7 @@ func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
 func TestDefaultTemplateSucceedsAndInstallsNothing(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := deploy(t, request(dir, ops.Discover().Settings[0].Default))
+	res := deploy(t, request(dir, ops.Describe().Settings[0].Default))
 	if !res.OK {
 		t.Fatalf("the declared default failed: %s", res.Combined)
 	}

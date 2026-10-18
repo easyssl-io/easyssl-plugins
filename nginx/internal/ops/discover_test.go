@@ -331,7 +331,23 @@ func TestRejectedConfigurationIsAWarning(t *testing.T) {
 	}
 }
 
-func TestDiscoverDeclaresFourSettings(t *testing.T) {
+func TestDescribeIsTheIdentityAndTheDeclarations(t *testing.T) {
+	d := Describe()
+	if d.ContractVersion != plugincontractVersion || d.Name != Name || d.Version == "" {
+		t.Fatalf("describe identity = %q %q %q", d.ContractVersion, d.Name, d.Version)
+	}
+	if d.Description["en"] == "" || d.Description["es"] == "" || d.Description["es"] == d.Description["en"] {
+		t.Fatalf("the description needs English and Spanish of its own: %q", d.Description)
+	}
+	if !slices.EqualFunc(d.Settings, declarations(), func(a, b SettingDeclaration) bool { return a.Key == b.Key }) {
+		t.Fatal("describe does not declare the settings deploy reads")
+	}
+	if err := plugincontract.ValidateDescribe(d); err != nil {
+		t.Fatalf("the Agent would refuse this answer: %v", err)
+	}
+}
+
+func TestDescribeDeclaresFourSettings(t *testing.T) {
 	d := declarations()
 	var keys []string
 	for _, s := range d {

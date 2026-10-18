@@ -38,9 +38,11 @@ func main() {
 // run is main with its edges passed in, so the stdio framing is testable.
 func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: %s <%s|%s>", ops.Name, ops.OpDiscover, ops.OpDeploy)
+		return fmt.Errorf("usage: %s <%s|%s|%s>", ops.Name, ops.OpDescribe, ops.OpDiscover, ops.OpDeploy)
 	}
 	switch args[0] {
+	case ops.OpDescribe:
+		return writeJSON(stdout, ops.Describe())
 	case ops.OpDiscover:
 		return writeJSON(stdout, ops.Discover())
 	case ops.OpDeploy:

@@ -44,8 +44,8 @@ things follow, and both are easy to break by accident:
 
 ## Text a reader sees
 
-Everything `discover` answers for a person to read is text per language
-(`l10n.Text` from the contract module): the Plugin's description, each
+Everything `describe` and `discover` answer for a person to read is text per
+language (`l10n.Text` from the contract module): the Plugin's description, each
 setting's label and description, every warning and every extra-data label.
 English is required; an answer holding a text without it is refused as
 malformed. A Plugin answers in every language at once, because the answer is
