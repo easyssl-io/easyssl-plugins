@@ -57,7 +57,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	case ops.OpWriteFile:
 		// Not an Agent operation: deploy runs this executable again with it, under
 		// the credentials of a file's owner, to replace a file in a directory that
-		// owner controls (ops.writeAsOwner says why).
+		// owner controls (writeAs in internal/ops says why).
 		var req ops.WriteFileRequest
 		if err := readJSON(stdin, &req); err != nil {
 			return fmt.Errorf("reading the write request: %w", err)
