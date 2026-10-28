@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
 
@@ -84,6 +85,8 @@ type instance struct {
 	PrefixGiven bool
 	Globals     string
 	build       build
+	// Cred is who the master runs as, nil for root (credOf).
+	Cred *syscall.Credential
 	// Signal is whether Reload is the master's own `nginx -s reload`, which
 	// needs guard.
 	Signal bool

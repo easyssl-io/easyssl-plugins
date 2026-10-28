@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // scan walks /proc and returns one instance per running nginx master, each
@@ -47,7 +48,7 @@ func scan() ([]instance, error) {
 		if exe == "" {
 			continue // exited between the listing and the read
 		}
-		in := instance{PID: pid, Exe: exe}
+		in := instance{PID: pid, Exe: exe, Cred: credOf(pid)}
 		startFrom(&in, title)
 		decide(&in)
 		in.Certs, in.CertsErr = certificates(func(string, string) error { return accepted(&in) }, in.Exe, in.ConfigPath)
@@ -77,12 +78,17 @@ func scan() ([]instance, error) {
 // smaller filesystem, which is how a reload can fail on a host where `nginx -t`
 // just succeeded.
 //
-// The instance's own binary and its own -p, -c and -g are used, since a second
+// It runs as the master's user (credOf). The instance's own binary and its
+// own -p, -c and -g are used, since a second
 // nginx on the host may be a different build with different compiled-in paths,
 // and a prefix changes what every relative path means.
 func accepted(in *instance) error {
 	w := in.words()
-	out, err := exec.Command(w[0], append(w[1:], "-t")...).CombinedOutput()
+	cmd := exec.Command(w[0], append(w[1:], "-t")...)
+	if in.Cred != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: in.Cred}
+	}
+	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
 	}

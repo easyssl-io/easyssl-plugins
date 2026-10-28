@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
@@ -75,7 +76,13 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 	live := servingOf(certPath)
 	var guards []func() error
+	// The commands this Plugin derived for a master run as that master's
+	// user (credOf); anything else in a setting runs as root, as written.
+	var testAs, reloadAs *syscall.Credential
 	for _, in := range live.masters {
+		if req.Settings[SettingTest] == in.Test {
+			testAs = in.Cred
+		}
 		if len(in.Changed) > 0 {
 			return fmt.Errorf("nothing was written: %s. Reload nginx once those edits are ready, then deploy again", changedProblem(in).In(l10n.English))
 		}
@@ -86,6 +93,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 				return fmt.Errorf("nothing was written: %v", err)
 			}
 			guards = append(guards, in.guard)
+			reloadAs = in.Cred
 		}
 	}
 	serving := live.blocks
@@ -104,12 +112,12 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingTest])
-	if err := runScript(ctx, req.Settings[SettingTest], stdout, stderr); err != nil {
+	if err := runScript(ctx, req.Settings[SettingTest], testAs, stdout, stderr); err != nil {
 		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
 	marks := logMarks(live.logs)
-	if err := reload(ctx, req, guards, stdout, stderr); err != nil {
+	if err := reload(ctx, req, guards, reloadAs, stdout, stderr); err != nil {
 		if errors.Is(err, errGuard) {
 			written.Restore(stdout, stderr)
 			return fmt.Errorf("%v; the previous files were put back", err)
@@ -133,7 +141,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if errors.Is(err, tlscheck.ErrGone) {
 		return fmt.Errorf("%v after the reload; the previous files were put back, and nginx has to be started again", err)
 	}
-	if rerr := reload(ctx, req, guards, stdout, stderr); rerr != nil {
+	if rerr := reload(ctx, req, guards, reloadAs, stdout, stderr); rerr != nil {
 		return fmt.Errorf("%v; the previous files were put back, and reloading them failed too: %v", err, rerr)
 	}
 	why := "most likely because applying the reload failed, which its error log says"
@@ -144,14 +152,14 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 }
 
 // reload runs the reload setting, right after the guards pass.
-func reload(ctx context.Context, req DeployRequest, guards []func() error, stdout, stderr io.Writer) error {
+func reload(ctx context.Context, req DeployRequest, guards []func() error, as *syscall.Credential, stdout, stderr io.Writer) error {
 	for _, g := range guards {
 		if err := g(); err != nil {
 			return fmt.Errorf("the reload was not run: %w", err)
 		}
 	}
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
-	if err := runScript(ctx, req.Settings[SettingReload], stdout, stderr); err != nil {
+	if err := runScript(ctx, req.Settings[SettingReload], as, stdout, stderr); err != nil {
 		return fmt.Errorf("the reload command %s", describeExit(err))
 	}
 	return nil
@@ -287,8 +295,11 @@ func (s serving) alive() bool {
 // runScript runs a setting as one `/bin/sh -e -c` script, so a multi-line
 // command stops at its first failing line, with its output on the Plugin's
 // own streams.
-func runScript(ctx context.Context, script string, stdout, stderr io.Writer) error {
+func runScript(ctx context.Context, script string, as *syscall.Credential, stdout, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", script)
+	if as != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: as}
+	}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	return cmd.Run()
 }

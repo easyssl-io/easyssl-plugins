@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
 )
@@ -209,4 +210,53 @@ func (in *instance) guard() error {
 		return fmt.Errorf("%w: pid %d no longer runs %s", errGuard, in.PID, in.Exe)
 	}
 	return nil
+}
+
+// credOf is the credentials a master runs with, from /proc/<pid>/status: its
+// effective uid and gid and its supplementary groups. nil for root.
+//
+// The test and this Plugin's own signal run with them, because `nginx -t`
+// loads every `load_module` its configuration names and runs it: as root,
+// the configuration of a master an ordinary user started, with that user's
+// -p, -c and -g, would be that user's code running as root.
+func credOf(pid int) *syscall.Credential {
+	var c syscall.Credential
+	found := 0
+	for _, l := range strings.Split(procFile(pid, "status"), "\n") {
+		k, v, ok := strings.Cut(l, ":")
+		if !ok {
+			continue
+		}
+		f := strings.Fields(v)
+		switch k {
+		case "Uid", "Gid":
+			if len(f) < 2 {
+				return nil
+			}
+			n, err := strconv.ParseUint(f[1], 10, 32) // effective
+			if err != nil {
+				return nil
+			}
+			if k == "Uid" {
+				c.Uid = uint32(n)
+			} else {
+				c.Gid = uint32(n)
+			}
+			found++
+		case "Groups":
+			c.Groups = []uint32{}
+			for _, g := range f {
+				if n, err := strconv.ParseUint(g, 10, 32); err == nil {
+					c.Groups = append(c.Groups, uint32(n))
+				}
+			}
+		}
+	}
+	if found < 2 || c.Uid == 0 {
+		return nil
+	}
+	if c.Groups == nil {
+		c.Groups = []uint32{}
+	}
+	return &c
 }
