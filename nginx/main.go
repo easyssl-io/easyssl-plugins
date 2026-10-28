@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/nginx/internal/ops"
 )
 
@@ -53,6 +54,15 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// No response document: the exit status is the answer, and everything the run
 		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
+	case ops.OpWriteFile:
+		// Not an Agent operation: deploy runs this executable again with it, under
+		// the credentials of a file's owner, to replace a file in a directory that
+		// owner controls (hostfile.WriteAs says why).
+		var req hostfile.WriteRequest
+		if err := readJSON(stdin, &req); err != nil {
+			return fmt.Errorf("reading the write request: %w", err)
+		}
+		return hostfile.Write(req)
 	default:
 		// An operation this build does not implement. The Agent treats the
 		// non-zero exit here as the operation being unsupported.

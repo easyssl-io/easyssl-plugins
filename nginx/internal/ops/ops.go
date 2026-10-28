@@ -19,6 +19,9 @@ const (
 	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
+	// OpWriteFile is internal: deploy runs this executable with it under a
+	// file owner's credentials (hostfile.WriteAs). The Agent never sends it.
+	OpWriteFile = "write-file"
 
 	// The four settings, keyed by nginx's own directive names so a reader
 	// with nginx.conf open needs no translation. Constants because describe
@@ -80,7 +83,8 @@ func declarations() []SettingDeclaration {
 			Required: true,
 			Description: T("nginx.setting.ssl_certificate_key.description",
 				"The file nginx reads the private key from.\n\n"+
-					"Both files keep the permissions, owner and SELinux label of the files they replace; a new file is `0600`."),
+					"Both files keep everything about the files they replace except their content: owner, mode, "+
+					"ACLs and other extended attributes, SELinux label included. A new file is `0600`."),
 		},
 		{
 			Key: SettingTest, Label: T("nginx.setting.test.label", "Test command"), Type: plugincontract.SettingTypeCommand,

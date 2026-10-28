@@ -1,27 +1,23 @@
 package ops
 
 import (
-	"bytes"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/asn1"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/wire"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // Discovery, in two halves. scan.go finds the running nginx masters and asks
@@ -38,8 +34,8 @@ func Describe() DescribeResponse {
 		Version:         Version(),
 		Description: T("nginx.description",
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
-				"and installs a new one by writing the files, testing the configuration with `nginx -t` "+
-				"and reloading only when that passes."),
+				"and installs a new one by writing the files, testing the configuration with `nginx -t`, "+
+				"reloading only when that passes, and checking that nginx then serves it."),
 		Settings: declarations(),
 	}
 }
@@ -78,6 +74,25 @@ type instance struct {
 	// not be gated or parsed.
 	Certs    []CertRef
 	CertsErr error
+	// Servers is the configuration's server blocks (serversOf), nil when it
+	// could not be parsed.
+	Servers []nginxServer
+
+	// Prefix is where the master resolves relative paths: its -p, else the
+	// compiled prefix. PrefixGiven is whether it was started with -p, and
+	// Globals what its -g holds that its commands repeat (startFrom).
+	Prefix      string
+	PrefixGiven bool
+	Globals     string
+	build       build
+	// Cred is who the master runs as, nil for root (credOf).
+	Cred *syscall.Credential
+	// Signal is whether Reload is the master's own `nginx -s reload`, which
+	// needs guard.
+	Signal bool
+	// Changed is the configuration's files edited since the master last
+	// loaded them (changedSince).
+	Changed []string
 }
 
 // CertRef is one ssl_certificate occurrence: where it was written, what it
@@ -129,9 +144,11 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
 	targets, warnings := []DiscoveredTarget{}, []l10n.Text{}
 	reload, test := map[int]string{}, map[int]string{}
+	masters := map[int]*instance{}
 	var refs []CertRef
-	for _, in := range found {
+	for i, in := range found {
 		reload[in.PID], test[in.PID] = in.Reload, in.Test
+		masters[in.PID] = &found[i]
 		if in.CertsErr != nil {
 			warnings = append(warnings, warnInstance(in))
 			continue
@@ -141,10 +158,16 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			refs = append(refs, c)
 		}
 	}
+	refs, notFiles := filesOnly(refs)
+	warnings = append(warnings, notFiles...)
 	grouped, conflicts := group(refs)
 	for _, c := range grouped {
 		if w := warnShared(c, found); len(w) != 0 {
 			warnings = append(warnings, w)
+			continue
+		}
+		if probs := problemsOf(c, masters[c.Refs[0].PID]); len(probs) > 0 {
+			warnings = append(warnings, notSuggested(c.Path, probs))
 			continue
 		}
 		t := DiscoveredTarget{
@@ -165,7 +188,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			}
 			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType, SHA256: c.SHA256}
 		}
-		if errors.Is(c.SANErr, errNoCertificate) {
+		if errors.Is(c.SANErr, pemfile.ErrNoCertificate) {
 			warnings = append(warnings, T("nginx.warning.no_certificate",
 				"`{path}`: its names could not be read, so none are reported: the file holds no PEM certificate",
 				"path", c.Path))
@@ -274,7 +297,7 @@ func warnKeyConflict(c Certificate) l10n.Text {
 		}
 		where[r.KeyResolved] = append(where[r.KeyResolved], fmt.Sprintf("`pid %d` `%s:%d`", r.PID, r.File, r.KeyLine))
 	}
-	same := sameContent(order)
+	same := hostfile.SameContent(order)
 	return perLanguage(func(p l10n.Printer) string {
 		var parts []string
 		for _, k := range order {
@@ -298,25 +321,6 @@ func warnKeyConflict(c Certificate) l10n.Text {
 				"on disk: nginx refuses a certificate and key that do not match.",
 			"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
 	})
-}
-
-// sameContent reports whether every path holds identical bytes. A key is a few
-// kilobytes, so this compares them rather than hashing.
-func sameContent(paths []string) bool {
-	if len(paths) < 2 {
-		return true
-	}
-	first, err := os.ReadFile(paths[0])
-	if err != nil {
-		return false
-	}
-	for _, p := range paths[1:] {
-		b, err := os.ReadFile(p)
-		if err != nil || !bytes.Equal(b, first) {
-			return false
-		}
-	}
-	return true
 }
 
 // errNoConfiguration is a master whose configuration file could not be told
@@ -508,42 +512,14 @@ func certificateAlgorithm(path string) x509.PublicKeyAlgorithm {
 	return leaf.PublicKeyAlgorithm
 }
 
-// keyAlgorithm reports the algorithm of a private key file, trying the three
-// encodings nginx accepts.
+// keyAlgorithm reports the algorithm of a private key file, in any of the
+// three encodings nginx accepts; unknown for an encrypted one.
 func keyAlgorithm(path string) x509.PublicKeyAlgorithm {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return x509.UnknownPublicKeyAlgorithm
 	}
-	for len(b) > 0 {
-		var blk *pem.Block
-		blk, b = pem.Decode(b)
-		if blk == nil {
-			break
-		}
-		if k, err := x509.ParsePKCS8PrivateKey(blk.Bytes); err == nil {
-			return algorithmOf(k)
-		}
-		if _, err := x509.ParsePKCS1PrivateKey(blk.Bytes); err == nil {
-			return x509.RSA
-		}
-		if _, err := x509.ParseECPrivateKey(blk.Bytes); err == nil {
-			return x509.ECDSA
-		}
-	}
-	return x509.UnknownPublicKeyAlgorithm
-}
-
-func algorithmOf(k any) x509.PublicKeyAlgorithm {
-	switch k.(type) {
-	case *rsa.PrivateKey:
-		return x509.RSA
-	case *ecdsa.PrivateKey:
-		return x509.ECDSA
-	case ed25519.PrivateKey:
-		return x509.Ed25519
-	}
-	return x509.UnknownPublicKeyAlgorithm
+	return pemfile.KeyAlgorithm(b)
 }
 
 // resolve turns an ssl_certificate value into the real file it names.
@@ -644,7 +620,7 @@ func sans(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return generalNames(leaf)
+	return pemfile.GeneralNames(leaf)
 }
 
 // leafOf parses the first certificate in a PEM file: ssl_certificate commonly
@@ -665,63 +641,9 @@ func leafDER(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	for len(b) > 0 {
-		var blk *pem.Block
-		blk, b = pem.Decode(b)
-		if blk == nil {
-			break
-		}
-		if blk.Type != "CERTIFICATE" {
-			continue // a key or parameters sharing the file
-		}
-		return blk.Bytes, nil
+	der, err := pemfile.LeafDER(b)
+	if err != nil {
+		return nil, fmt.Errorf("%w in %s", err, path)
 	}
-	return nil, fmt.Errorf("%w in %s", errNoCertificate, path)
-}
-
-// errNoCertificate is a file with no certificate in it, named apart from the
-// errors a parser produces so its warning can be worded in every language.
-var errNoCertificate = errors.New("no PEM certificate")
-
-// oidSubjectAltName is 2.5.29.17.
-var oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
-
-// GeneralName context-specific tags, RFC 5280 4.2.1.6.
-const (
-	tagDNSName   = 2
-	tagIPAddress = 7
-)
-
-// generalNames walks the SubjectAltName extension in encoding order.
-func generalNames(leaf *x509.Certificate) ([]string, error) {
-	for _, ext := range leaf.Extensions {
-		if !ext.Id.Equal(oidSubjectAltName) {
-			continue
-		}
-		var seq asn1.RawValue
-		if _, err := asn1.Unmarshal(ext.Value, &seq); err != nil {
-			return nil, fmt.Errorf("subjectAltName: %w", err)
-		}
-		var out []string
-		for rest := seq.Bytes; len(rest) > 0; {
-			var v asn1.RawValue
-			var err error
-			rest, err = asn1.Unmarshal(rest, &v)
-			if err != nil {
-				return nil, fmt.Errorf("subjectAltName entry: %w", err)
-			}
-			switch v.Tag {
-			case tagDNSName:
-				out = append(out, string(v.Bytes))
-			case tagIPAddress:
-				// 4 bytes for IPv4, 16 for IPv6; anything else is not an
-				// address and is left out rather than rendered as nonsense.
-				if l := len(v.Bytes); l == net.IPv4len || l == net.IPv6len {
-					out = append(out, net.IP(v.Bytes).String())
-				}
-			}
-		}
-		return out, nil
-	}
-	return nil, nil // no SubjectAltName extension at all
+	return der, nil
 }

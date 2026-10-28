@@ -1,0 +1,3 @@
+@ROOT@/M/m.crt cert-ec,419a24c7
+@ROOT@/M/m.key key,419a24c7
+@ROOT@/M/mca.crt cert-ec,7d28c727

@@ -50,7 +50,7 @@ func content(t *testing.T, p string) string {
 }
 
 func TestDeployCopiesPermissionsTestsThenReloads(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if err := os.WriteFile(cert, []byte("old cert"), 0o644); err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestDeployCopiesPermissionsTestsThenReloads(t *testing.T) {
 }
 
 func TestDeployNewFilesAre0600(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "new", "site.crt"), filepath.Join(dir, "new", "site.key")
 	if out, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 0, cert, key); err != nil {
 		t.Fatalf("deploy: %v\n%s", err, out)
@@ -96,7 +96,7 @@ func TestDeployNewFilesAre0600(t *testing.T) {
 }
 
 func TestFailedTestPutsTheFilesBackAndDoesNotReload(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if err := os.WriteFile(cert, []byte("old cert"), 0o644); err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestFailedTestPutsTheFilesBackAndDoesNotReload(t *testing.T) {
 }
 
 func TestFailedTestRemovesFilesThatDidNotExist(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if _, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 1, cert, key); err == nil {
 		t.Fatal("deploy succeeded with a failing test")
@@ -130,9 +130,12 @@ func TestFailedTestRemovesFilesThatDidNotExist(t *testing.T) {
 }
 
 func TestDeployWritesThroughASymlink(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	real := filepath.Join(dir, "archive", "cert1.pem")
-	if err := os.MkdirAll(filepath.Dir(real), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Dir(real), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(real), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(real, []byte("old"), 0o644); err != nil {
@@ -155,7 +158,7 @@ func TestDeployWritesThroughASymlink(t *testing.T) {
 }
 
 func TestDeployRefusesBadSettings(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	m := issue(t, "ec", "a.example.test")
 	if _, err := deployTo(t, dir, m, "", 0, "relative.crt", filepath.Join(dir, "k")); err == nil || !strings.Contains(err.Error(), "absolute") {
 		t.Fatalf("relative path: %v", err)
@@ -212,5 +215,144 @@ func TestPairingGuard(t *testing.T) {
 	}
 	if err := checkPairing(root+"/new.crt", root+"/new.key", nil); err != nil {
 		t.Fatalf("a path no nginx loads: %v", err)
+	}
+}
+
+// A certificate under another ACME client's directory is a warning, not a
+// suggestion, and a Deployment to it writes nothing.
+func TestACMEManagedPathIsNotSuggested(t *testing.T) {
+	m := issue(t, "ec", "certbot.example.test")
+	root := tree(t, map[string]string{
+		"etc/letsencrypt/archive/x/cert1.pem":    m.cert,
+		"etc/letsencrypt/archive/x/privkey1.pem": m.key,
+		"etc/letsencrypt/live/x/fullchain.pem":   "->../../archive/x/cert1.pem",
+		"etc/letsencrypt/live/x/privkey.pem":     "->../../archive/x/privkey1.pem",
+		"nginx.conf":                             `http { server { listen 8443 ssl; ssl_certificate /ROOT/etc/letsencrypt/live/x/fullchain.pem; ssl_certificate_key /ROOT/etc/letsencrypt/live/x/privkey.pem; } }`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 {
+		t.Fatalf("suggested %v", targets)
+	}
+	if !hasWarning(warnings, "cert1.pem", "another ACME client") {
+		t.Fatalf("no warning about the ACME client: %q", warnings)
+	}
+	before := content(t, root+"/etc/letsencrypt/archive/x/cert1.pem")
+	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem")
+	if err == nil || !strings.Contains(err.Error(), "nothing was written") {
+		t.Fatalf("deploy = %v, want a refusal", err)
+	}
+	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != before {
+		t.Fatal("the certificate was written")
+	}
+}
+
+// A hard-linked key is refused, since replacing it would leave its other name
+// with the old key, and a pair that does not belong together is refused
+// before anything is written.
+func TestDeployRefusesHardLinksAndMismatchedPairs(t *testing.T) {
+	dir := ownedDir(t)
+	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
+	if err := os.WriteFile(key, []byte("old key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(key, filepath.Join(dir, "other.key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 0, cert, key); err == nil || !strings.Contains(err.Error(), "hard links") {
+		t.Fatalf("a hard-linked key: %v", err)
+	}
+	if _, err := os.Stat(cert); !os.IsNotExist(err) {
+		t.Fatal("the certificate was written beside a refused key")
+	}
+
+	a, b := issue(t, "ec", "a.example.test"), issue(t, "ec", "b.example.test")
+	mixed := material{cert: a.cert, key: b.key}
+	_, err := deployTo(t, dir, mixed, "", 0, filepath.Join(dir, "new.crt"), filepath.Join(dir, "new.key"))
+	if err == nil || !strings.Contains(err.Error(), "do not belong together") {
+		t.Fatalf("a mismatched pair: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "log")); !os.IsNotExist(err) {
+		t.Fatal("a command ran for a mismatched pair")
+	}
+}
+
+// A certificate whose key is protected by a passphrase is a warning, not a
+// suggestion, and a Deployment does not replace the key.
+func TestEncryptedKeyIsNotSuggested(t *testing.T) {
+	m := issue(t, "ec", "enc.example.test")
+	enc := "-----BEGIN ENCRYPTED PRIVATE KEY-----\nAAAA\n-----END ENCRYPTED PRIVATE KEY-----\n"
+	root := tree(t, map[string]string{
+		"enc.crt":    m.cert,
+		"enc.key":    enc,
+		"nginx.conf": `http { ssl_password_file /ROOT/pass; server { listen 8443 ssl; ssl_certificate /ROOT/enc.crt; ssl_certificate_key /ROOT/enc.key; } }`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 || !hasWarning(warnings, "enc.crt", "passphrase") {
+		t.Fatalf("targets %v, warnings %q", targets, warnings)
+	}
+	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/enc.crt", root+"/enc.key")
+	if err == nil || !strings.Contains(err.Error(), "encrypted") {
+		t.Fatalf("deploy = %v, want a refusal", err)
+	}
+	if content(t, root+"/enc.key") != enc || content(t, root+"/enc.crt") != m.cert {
+		t.Fatal("a file changed")
+	}
+}
+
+// A value nginx does not read from one file is a warning, never a suggestion,
+// and a certificate file one block pairs with such a key is not suggested
+// anywhere (#222). A Target naming one by hand is refused before writing.
+func TestNotAFileIsNotSuggested(t *testing.T) {
+	ok, eng := issue(t, "ec", "ok.example.test"), issue(t, "ec", "eng.example.test")
+	root := tree(t, map[string]string{
+		"ok.crt": ok.cert, "ok.key": ok.key, "eng.crt": eng.cert, "eng.key": eng.key,
+		"nginx.conf": `http {
+  server { listen 8441 ssl; server_name ok.test; ssl_certificate /ROOT/ok.crt; ssl_certificate_key /ROOT/ok.key; }
+  server { listen 8442 ssl; server_name a.test b.test; ssl_certificate /ROOT/w/$ssl_server_name.crt; ssl_certificate_key /ROOT/w/$ssl_server_name.key; }
+  server { listen 8443 ssl; server_name d.test; ssl_certificate "data:-----BEGIN CERTIFICATE-----
+MIIBmTCCAT+gAwIBAgIUQ...
+-----END CERTIFICATE-----"; ssl_certificate_key /ROOT/ok.key; }
+  server { listen 8444 ssl; server_name e.test; ssl_certificate /ROOT/eng.crt; ssl_certificate_key engine:pkcs11:id_45; }
+  server { listen 8445 ssl; server_name e2.test; ssl_certificate /ROOT/eng.crt; ssl_certificate_key /ROOT/eng.key; }
+  server { listen 8446 ssl; server_name s.test; ssl_certificate /ROOT/ok.crt; ssl_certificate_key store:pkcs11:token=t; }
+} events {}`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 {
+		t.Errorf("suggested %v, want nothing: ok.crt is paired with a store: key, eng.crt with an engine: key", targets)
+	}
+	for _, want := range [][]string{
+		{"`" + root + "/w/$ssl_server_name.crt` (`pid 100:" + conf + ":3`) is not the name of one file"},
+		{"`data:-----BEGIN CERTIFICATE-----…` (`pid 100:" + conf + ":4`)"},
+		{"`engine:pkcs11:id_45` (`pid 100:" + conf + ":7`)"},
+		{"`store:pkcs11:token=t` (`pid 100:" + conf + ":9`)"},
+	} {
+		if !hasWarning(warnings, want...) {
+			t.Errorf("no warning saying %q in %q", want, warnings)
+		}
+	}
+	for _, s := range []map[string]string{
+		{SettingCertificate: root + "/w/$host.crt", SettingKey: root + "/k.key"},
+		{SettingCertificate: root + "/ok.crt", SettingKey: "engine:pkcs11:id_45"},
+	} {
+		_, err := deployTo(t, root, ok, "", 0, s[SettingCertificate], s[SettingKey])
+		if err == nil || !strings.Contains(err.Error(), "does not read from one file") {
+			t.Errorf("%v: deploy = %v, want a refusal", s, err)
+		}
+	}
+	if _, err := os.Stat(root + "/w"); !os.IsNotExist(err) || content(t, root+"/ok.key") != ok.key {
+		t.Error("a refused Deployment wrote something")
 	}
 }

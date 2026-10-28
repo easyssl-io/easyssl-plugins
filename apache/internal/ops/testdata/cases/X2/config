@@ -1,0 +1,38 @@
+# In file: @ROOT@/X2/httpd.conf
+#   7:
+User daemon
+#   8:
+Group daemon
+#   9:
+ServerName localhost
+#  10:
+StartServers 1
+#  11:
+ServerLimit 1
+#  12:
+ThreadsPerChild 4
+#  13:
+MinSpareThreads 1
+#  14:
+MaxSpareThreads 4
+#  15:
+MaxRequestWorkers 4
+#  16:
+PidFile @ROOT@/X2/httpd.pid
+#  17:
+ErrorLog @ROOT@/X2/error_log
+#  19:
+DocumentRoot @ROOT@/X2
+#  20:
+Listen 9477
+#  21:
+<VirtualHost *:9477 *:9478>
+  #  22:
+  ServerName x2.test
+  #  23:
+  SSLEngine on
+  #  24:
+  SSLCertificateFile @ROOT@/X/x2.crt
+  #  25:
+  SSLCertificateKeyFile @ROOT@/X/x2.key
+</VirtualHost>

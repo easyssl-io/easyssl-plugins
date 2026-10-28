@@ -1,0 +1,43 @@
+# In file: @ROOT@/J/httpd.conf
+#   7:
+User daemon
+#   8:
+Group daemon
+#   9:
+ServerName localhost
+#  10:
+StartServers 1
+#  11:
+ServerLimit 1
+#  12:
+ThreadsPerChild 4
+#  13:
+MinSpareThreads 1
+#  14:
+MaxSpareThreads 4
+#  15:
+MaxRequestWorkers 4
+#  16:
+PidFile @ROOT@/J/httpd.pid
+#  17:
+ErrorLog @ROOT@/J/error_log
+#  19:
+DocumentRoot @ROOT@/J
+#  20:
+Listen 9450
+#  21:
+<VirtualHost *:9450>
+  #  22:
+  ServerName j1.test
+</VirtualHost>
+#  24:
+<VirtualHost *:9450>
+  #  25:
+  ServerName j2.test
+  #  26:
+  SSLEngine on
+  #  27:
+  SSLCertificateFile @ROOT@/J/j2.crt
+  #  28:
+  SSLCertificateKeyFile @ROOT@/J/j2.key
+</VirtualHost>

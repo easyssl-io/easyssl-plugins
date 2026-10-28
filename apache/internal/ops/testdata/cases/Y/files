@@ -1,0 +1,6 @@
+@ROOT@/Y/y1.crt cert-ec,ce918482
+@ROOT@/Y/y1.key key,ce918482
+@ROOT@/Y/y2.crt cert-ec,89abc4a0
+@ROOT@/Y/y2.key key,89abc4a0
+@ROOT@/Y/y3.crt cert-ec,f17afe5c
+@ROOT@/Y/y3.key key,f17afe5c

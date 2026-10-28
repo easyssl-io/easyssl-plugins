@@ -1,0 +1,2 @@
+VirtualHost configuration:
+*:*                    w.test (@ROOT@/W/httpd.conf:22)

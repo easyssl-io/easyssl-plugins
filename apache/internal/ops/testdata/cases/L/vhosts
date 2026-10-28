@@ -1,0 +1,5 @@
+VirtualHost configuration:
+*:9452                 is a NameVirtualHost
+         default server l1.test (@ROOT@/L/httpd.conf:21)
+         port 9452 namevhost l1.test (@ROOT@/L/httpd.conf:21)
+         port 9452 namevhost l2.test (@ROOT@/L/httpd.conf:27)

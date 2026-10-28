@@ -2,10 +2,7 @@ package ops
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -14,15 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/tlscheck"
 )
 
-// defaultMode is a new file's mode, when there is no file being replaced to
-// copy one from. The Certificate file is public, but nginx's master reads both
-// as root, so the stricter mode costs nothing and one rule is easier to trust.
-const defaultMode os.FileMode = 0o600
-
-// liveNote is the last line of a successful run. It is there because the
-// success means less than it seems to: `nginx -s reload`, and `systemctl
+// liveNote is the last line of a successful run that found no place to check
+// what nginx serves (endpoints.go says which places it trusts). It is there
+// because the success then means less than it seems to: `nginx -s reload`, and `systemctl
 // reload` which runs it, returns once the signal is sent, and the master
 // applies the new configuration afterwards. If applying any part of it fails,
 // most often a `listen` it cannot bind in a file unrelated to this Target,
@@ -32,10 +30,14 @@ const liveNote = "Installed and reloaded. nginx applies a reload after this comm
 	"previous configuration if applying it fails, so this does not confirm the new Certificate is being served."
 
 // Deploy installs a Certificate at an nginx Target: it writes the full chain
-// and the key where the Target's settings say, runs the test command, and
-// reloads only when that passes. When the test fails, the files it replaced
-// are put back, so a later reload for any other reason does not pick up a
-// pair nginx refused.
+// and the key where the Target's settings say, with nothing but their content
+// changed, runs the test command, and reloads only when that passes. It then
+// asks every place the file is served (endpoints.go) which certificate it
+// presents, because nginx applies a reload after the command returns and
+// keeps its previous configuration when applying it fails. When the test
+// fails, or the new Certificate is not served, the files it replaced are put
+// back, so a later reload for any other reason does not pick up a pair nginx
+// refused, and after a reload nginx is reloaded with them again.
 //
 // There is no response document: the exit status is the answer, and what
 // happened is on stdout and stderr, which the Agent records in order.
@@ -44,6 +46,11 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	for _, k := range []string{SettingCertificate, SettingKey, SettingTest, SettingReload} {
 		if strings.TrimSpace(req.Settings[k]) == "" {
 			return fmt.Errorf("the %q setting has no value; the Server should not have queued this Deployment", k)
+		}
+	}
+	for k, key := range map[string]bool{SettingCertificate: false, SettingKey: true} {
+		if notAFile(req.Settings[k], key) {
+			return fmt.Errorf("%s is %q, which nginx does not read from one file (a variable, `data:`, `engine:` or `store:`), so there is no file to write", k, shorten(req.Settings[k]))
 		}
 	}
 	certPath, err := target(req.Settings[SettingCertificate])
@@ -57,40 +64,109 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if certPath == keyPath {
 		return fmt.Errorf("ssl_certificate and ssl_certificate_key are both %s; nginx reads a certificate and a key, and one file holding both is not what this Plugin writes", certPath)
 	}
-	leaf, err := parseLeaf(req.CertificatePem)
+	leaf, err := pemfile.ParseLeaf(req.CertificatePem)
 	if err != nil {
 		return err
 	}
-	serving := blocksServing(certPath)
+	if pemfile.EncryptedKey([]byte(req.PrivateKeyPem)) {
+		return errors.New("the Deployment's private key is encrypted, which nginx could not load without its ssl_password_file")
+	}
+	if err := pemfile.PairMatches([]byte(req.CertificatePem), []byte(req.PrivateKeyPem)); err != nil {
+		return fmt.Errorf("the Deployment's certificate and key do not belong together: %w", err)
+	}
+	for _, p := range []string{certPath, keyPath} {
+		if probs := pathProblems(p); len(probs) > 0 {
+			return fmt.Errorf("nothing was written: %s", probs[0].In(l10n.English))
+		}
+	}
+	live := servingOf(certPath)
+	var guards []func() error
+	// The commands this Plugin derived for a master run as that master's
+	// user (credOf); anything else in a setting runs as root, as written.
+	var testAs, reloadAs *syscall.Credential
+	for _, in := range live.masters {
+		if req.Settings[SettingTest] == in.Test {
+			testAs = in.Cred
+		}
+		if len(in.Changed) > 0 {
+			return fmt.Errorf("nothing was written: %s. Reload nginx once those edits are ready, then deploy again", changedProblem(in).In(l10n.English))
+		}
+		// The guard is this Plugin's for the reload command it derived, which
+		// repeats the flags that decide which pid file is read.
+		if in.Signal && req.Settings[SettingReload] == in.Reload {
+			if err := in.guard(); err != nil {
+				return fmt.Errorf("nothing was written: %v", err)
+			}
+			guards = append(guards, in.guard)
+			reloadAs = in.Cred
+		}
+	}
+	serving := live.blocks
 	if err := checkPairing(certPath, keyPath, serving); err != nil {
 		return err
 	}
 	if err := checkDual(certPath, leaf.PublicKeyAlgorithm, func(string) []block { return serving }); err != nil {
 		return err
 	}
+	eps := endpointsFor(live.servers, certPath, leaf.PublicKeyAlgorithm.String())
 
-	fullchain := joinPEM(req.CertificatePem, req.ChainPem)
-	certOld, err := write(certPath, []byte(fullchain), stdout)
+	fullchain := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
-		return err
-	}
-	keyOld, err := write(keyPath, []byte(req.PrivateKeyPem), stdout)
-	if err != nil {
-		restore(certPath, certOld, stdout, stderr)
 		return err
 	}
 
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingTest])
-	if err := runScript(ctx, req.Settings[SettingTest], stdout, stderr); err != nil {
-		restore(certPath, certOld, stdout, stderr)
-		restore(keyPath, keyOld, stdout, stderr)
+	if err := runScript(ctx, req.Settings[SettingTest], testAs, stdout, stderr); err != nil {
+		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
-	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
-	if err := runScript(ctx, req.Settings[SettingReload], stdout, stderr); err != nil {
-		return fmt.Errorf("the reload command %s; the new files stay in place, and nginx keeps serving what it last loaded", describeExit(err))
+	marks := logMarks(live.logs)
+	if err := reload(ctx, req, guards, reloadAs, stdout, stderr); err != nil {
+		if errors.Is(err, errGuard) {
+			written.Restore(stdout, stderr)
+			return fmt.Errorf("%v; the previous files were put back", err)
+		}
+		return fmt.Errorf("%v; the new files stay in place, and nginx keeps serving what it last loaded", err)
 	}
-	fmt.Fprintln(stdout, liveNote)
+	if len(live.pids) == 0 || len(eps) == 0 {
+		fmt.Fprintln(stdout, liveNote)
+		return nil
+	}
+	served, err := tlscheck.Verify(live.alive, eps, leaf.Raw, stdout)
+	if err == nil {
+		fmt.Fprintln(stdout, served)
+		return nil
+	}
+	emerg := emergSince(marks)
+	for _, l := range emerg {
+		fmt.Fprintf(stdout, "nginx logged: %s\n", l)
+	}
+	written.Restore(stdout, stderr)
+	if errors.Is(err, tlscheck.ErrGone) {
+		return fmt.Errorf("%v after the reload; the previous files were put back, and nginx has to be started again", err)
+	}
+	if rerr := reload(ctx, req, guards, reloadAs, stdout, stderr); rerr != nil {
+		return fmt.Errorf("%v; the previous files were put back, and reloading them failed too: %v", err, rerr)
+	}
+	why := "most likely because applying the reload failed, which its error log says"
+	if len(emerg) > 0 {
+		why = "because applying the reload failed: " + emerg[0]
+	}
+	return fmt.Errorf("%v. nginx kept its previous configuration %s; the previous files were put back and nginx was reloaded with them", err, why)
+}
+
+// reload runs the reload setting, right after the guards pass.
+func reload(ctx context.Context, req DeployRequest, guards []func() error, as *syscall.Credential, stdout, stderr io.Writer) error {
+	for _, g := range guards {
+		if err := g(); err != nil {
+			return fmt.Errorf("the reload was not run: %w", err)
+		}
+	}
+	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
+	if err := runScript(ctx, req.Settings[SettingReload], as, stdout, stderr); err != nil {
+		return fmt.Errorf("the reload command %s", describeExit(err))
+	}
 	return nil
 }
 
@@ -106,14 +182,6 @@ func target(setting string) (string, error) {
 		return filepath.Clean(setting), nil
 	}
 	return real, err
-}
-
-func parseLeaf(certificatePEM string) (*x509.Certificate, error) {
-	block, _ := pem.Decode([]byte(certificatePEM))
-	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, errors.New("the Deployment carries no PEM certificate")
-	}
-	return x509.ParseCertificate(block.Bytes)
 }
 
 // checkPairing refuses a Target whose key file is not the one nginx pairs its
@@ -164,168 +232,79 @@ func checkDual(path string, alg x509.PublicKeyAlgorithm, serving func(string) []
 	return nil
 }
 
-// blocksServing is every configuration block of every running nginx master
-// that loads path. Empty when discovery cannot run, which leaves checkDual
-// nothing to refuse on.
-func blocksServing(path string) []block {
+// serving is what the running nginx masters do with a certificate file: the
+// configuration blocks that load it, for the checks before writing, and the
+// masters and their server blocks, for checking what is served after the
+// reload.
+type serving struct {
+	blocks  []block
+	pids    []int
+	exes    []string
+	logs    []string
+	servers []nginxServer
+	masters []instance
+}
+
+// servingOf reads every running master that loads path. Empty when discovery
+// cannot run, which leaves the checks nothing to refuse on and the reload
+// nothing to check: a Target configured ahead of the configuration that uses
+// it.
+func servingOf(path string) serving {
+	var out serving
 	found, err := scan()
 	if err != nil {
-		return nil
+		return out
 	}
-	var out []block
 	for _, in := range found {
 		if in.CertsErr != nil {
 			continue
 		}
 		blocks, _ := blocksOf(in.ConfigPath)
+		loads := false
 		for _, b := range blocks {
 			for _, c := range b.certs {
 				if c.resolved == path {
-					out = append(out, b)
+					out.blocks = append(out.blocks, b)
+					loads = true
 					break
 				}
 			}
 		}
+		if !loads {
+			continue
+		}
+		out.pids = append(out.pids, in.PID)
+		out.exes = append(out.exes, in.Exe)
+		out.masters = append(out.masters, in)
+		if l := errorLogOf(in); l != "" {
+			out.logs = append(out.logs, l)
+		}
+		if servers, err := serversOf(in.ConfigPath); err == nil {
+			out.servers = append(out.servers, servers...)
+		}
 	}
 	return out
 }
 
-// previous is what a write replaced, for restore: nil data when there was
-// no file.
-type previous struct {
-	data []byte
-	info os.FileInfo
-}
-
-// write puts data at path so a reader sees either the old file or the new
-// one, never part of either, and returns what it replaced.
-//
-// The temporary file is created in the destination directory, so the rename
-// is atomic, at 0600 so it is never readable by others on the way. It then
-// takes the replaced file's mode, owner and group, and its SELinux label when
-// it has one, so nginx reads it exactly as it read the old one; a file with
-// nothing to copy from keeps 0600 and the Plugin's own owner, which under the
-// Agent is root.
-func write(path string, data []byte, out io.Writer) (previous, error) {
-	var old previous
-	info, err := os.Stat(path)
-	switch {
-	case err == nil:
-		if old.data, err = os.ReadFile(path); err != nil {
-			return old, err
-		}
-		old.info = info
-	case !errors.Is(err, os.ErrNotExist):
-		return old, err
-	}
-	if err := writeAtomic(path, data, old.info); err != nil {
-		return old, fmt.Errorf("writing %s: %w", path, err)
-	}
-	fmt.Fprintf(out, "wrote %s (%s)\n", path, describePerms(path, old.info))
-	return old, nil
-}
-
-func writeAtomic(path string, data []byte, like os.FileInfo) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	suffix := make([]byte, 8)
-	if _, err := rand.Read(suffix); err != nil {
-		return err
-	}
-	tmp := filepath.Join(dir, "."+filepath.Base(path)+".easyssl-"+hex.EncodeToString(suffix))
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, defaultMode)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp) // a no-op once the rename has succeeded
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	if like != nil {
-		if err := os.Chmod(tmp, like.Mode().Perm()); err != nil {
-			return err
-		}
-		if st, ok := like.Sys().(*syscall.Stat_t); ok && os.Geteuid() == 0 {
-			if err := os.Chown(tmp, int(st.Uid), int(st.Gid)); err != nil {
-				return err
-			}
-		}
-		if err := copyLabel(path, tmp); err != nil {
-			return err
+// alive reports every master that loads the file still running the binary it
+// ran.
+func (s serving) alive() bool {
+	for i, pid := range s.pids {
+		if exeOf(pid) != s.exes[i] {
+			return false
 		}
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		return err
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
-}
-
-func describePerms(path string, like os.FileInfo) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "?"
-	}
-	owner := ""
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		owner = fmt.Sprintf(", owner %d:%d", st.Uid, st.Gid)
-	}
-	how := "copied from the file it replaced"
-	if like == nil {
-		how = "a new file"
-	}
-	return fmt.Sprintf("mode %04o%s, %s", info.Mode().Perm(), owner, how)
-}
-
-// restore puts back what write replaced, or removes a file that did not exist
-// before. Best effort and reported: the run is already failing, and what it
-// could not undo is what the operator needs to read.
-func restore(path string, old previous, stdout, stderr io.Writer) {
-	var err error
-	if old.info == nil {
-		err = os.Remove(path)
-	} else {
-		err = writeAtomic(path, old.data, old.info)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(stderr, "could not put back %s: %v\n", path, err)
-		return
-	}
-	if old.info == nil {
-		fmt.Fprintf(stdout, "removed %s, which did not exist before\n", path)
-	} else {
-		fmt.Fprintf(stdout, "put back the previous %s\n", path)
-	}
-}
-
-// joinPEM is the certificate followed by its chain, each ending in one newline.
-func joinPEM(cert, chain string) string {
-	out := strings.TrimRight(cert, "\n") + "\n"
-	if c := strings.TrimSpace(chain); c != "" {
-		out += c + "\n"
-	}
-	return out
+	return true
 }
 
 // runScript runs a setting as one `/bin/sh -e -c` script, so a multi-line
 // command stops at its first failing line, with its output on the Plugin's
 // own streams.
-func runScript(ctx context.Context, script string, stdout, stderr io.Writer) error {
+func runScript(ctx context.Context, script string, as *syscall.Credential, stdout, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", script)
+	if as != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: as}
+	}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	return cmd.Run()
 }

@@ -1,0 +1,4 @@
+@ROOT@/H/h.crt cert-ec,7279a9df
+@ROOT@/H/h.key key,7279a9df
+@ROOT@/H/hx.crt cert-ec,3139521f
+@ROOT@/H/hx.key key,3139521f

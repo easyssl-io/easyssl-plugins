@@ -1,0 +1,5 @@
+VirtualHost configuration:
+*:9450                 is a NameVirtualHost
+         default server j1.test (@ROOT@/J/httpd.conf:21)
+         port 9450 namevhost j1.test (@ROOT@/J/httpd.conf:21)
+         port 9450 namevhost j2.test (@ROOT@/J/httpd.conf:24)

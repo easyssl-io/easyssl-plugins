@@ -1,0 +1,4 @@
+@ROOT@/D/d1.crt cert-ec,74e579a1
+@ROOT@/D/d1.key key,74e579a1
+@ROOT@/D/d2.crt cert-ec,bbf24056
+@ROOT@/D/d2.key key,bbf24056

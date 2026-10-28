@@ -1,0 +1,38 @@
+# In file: @ROOT@/V3/httpd.conf
+#   7:
+User daemon
+#   8:
+Group daemon
+#   9:
+ServerName localhost
+#  10:
+StartServers 1
+#  11:
+ServerLimit 1
+#  12:
+ThreadsPerChild 4
+#  13:
+MinSpareThreads 1
+#  14:
+MaxSpareThreads 4
+#  15:
+MaxRequestWorkers 4
+#  16:
+PidFile @ROOT@/V3/httpd.pid
+#  17:
+ErrorLog @ROOT@/V3/error_log
+#  19:
+DocumentRoot @ROOT@/V3
+#  20:
+Listen [::]:9473
+#  21:
+<VirtualHost *:9473>
+  #  22:
+  ServerName v3.test
+  #  23:
+  SSLEngine on
+  #  24:
+  SSLCertificateFile @ROOT@/V/v3.crt
+  #  25:
+  SSLCertificateKeyFile @ROOT@/V/v3.key
+</VirtualHost>

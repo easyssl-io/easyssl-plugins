@@ -1,0 +1,4 @@
+@ROOT@/E/e1.crt cert-ec,b846540d
+@ROOT@/E/e1.key key,b846540d
+@ROOT@/E/e2.crt cert-ec,ed2f4964
+@ROOT@/E/e2.key key,ed2f4964
