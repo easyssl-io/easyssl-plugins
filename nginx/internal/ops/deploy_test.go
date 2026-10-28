@@ -50,7 +50,7 @@ func content(t *testing.T, p string) string {
 }
 
 func TestDeployCopiesPermissionsTestsThenReloads(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if err := os.WriteFile(cert, []byte("old cert"), 0o644); err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestDeployCopiesPermissionsTestsThenReloads(t *testing.T) {
 }
 
 func TestDeployNewFilesAre0600(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "new", "site.crt"), filepath.Join(dir, "new", "site.key")
 	if out, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 0, cert, key); err != nil {
 		t.Fatalf("deploy: %v\n%s", err, out)
@@ -96,7 +96,7 @@ func TestDeployNewFilesAre0600(t *testing.T) {
 }
 
 func TestFailedTestPutsTheFilesBackAndDoesNotReload(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if err := os.WriteFile(cert, []byte("old cert"), 0o644); err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestFailedTestPutsTheFilesBackAndDoesNotReload(t *testing.T) {
 }
 
 func TestFailedTestRemovesFilesThatDidNotExist(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
 	if _, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 1, cert, key); err == nil {
 		t.Fatal("deploy succeeded with a failing test")
@@ -130,9 +130,12 @@ func TestFailedTestRemovesFilesThatDidNotExist(t *testing.T) {
 }
 
 func TestDeployWritesThroughASymlink(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	real := filepath.Join(dir, "archive", "cert1.pem")
-	if err := os.MkdirAll(filepath.Dir(real), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Dir(real), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(real), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(real, []byte("old"), 0o644); err != nil {
@@ -155,7 +158,7 @@ func TestDeployWritesThroughASymlink(t *testing.T) {
 }
 
 func TestDeployRefusesBadSettings(t *testing.T) {
-	dir := t.TempDir()
+	dir := ownedDir(t)
 	m := issue(t, "ec", "a.example.test")
 	if _, err := deployTo(t, dir, m, "", 0, "relative.crt", filepath.Join(dir, "k")); err == nil || !strings.Contains(err.Error(), "absolute") {
 		t.Fatalf("relative path: %v", err)
@@ -212,5 +215,67 @@ func TestPairingGuard(t *testing.T) {
 	}
 	if err := checkPairing(root+"/new.crt", root+"/new.key", nil); err != nil {
 		t.Fatalf("a path no nginx loads: %v", err)
+	}
+}
+
+// A certificate under another ACME client's directory is a warning, not a
+// suggestion, and a Deployment to it writes nothing.
+func TestACMEManagedPathIsNotSuggested(t *testing.T) {
+	m := issue(t, "ec", "certbot.example.test")
+	root := tree(t, map[string]string{
+		"etc/letsencrypt/archive/x/cert1.pem":    m.cert,
+		"etc/letsencrypt/archive/x/privkey1.pem": m.key,
+		"etc/letsencrypt/live/x/fullchain.pem":   "->../../archive/x/cert1.pem",
+		"etc/letsencrypt/live/x/privkey.pem":     "->../../archive/x/privkey1.pem",
+		"nginx.conf":                             `http { server { listen 8443 ssl; ssl_certificate /ROOT/etc/letsencrypt/live/x/fullchain.pem; ssl_certificate_key /ROOT/etc/letsencrypt/live/x/privkey.pem; } }`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 {
+		t.Fatalf("suggested %v", targets)
+	}
+	if !hasWarning(warnings, "cert1.pem", "another ACME client") {
+		t.Fatalf("no warning about the ACME client: %q", warnings)
+	}
+	before := content(t, root+"/etc/letsencrypt/archive/x/cert1.pem")
+	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem")
+	if err == nil || !strings.Contains(err.Error(), "nothing was written") {
+		t.Fatalf("deploy = %v, want a refusal", err)
+	}
+	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != before {
+		t.Fatal("the certificate was written")
+	}
+}
+
+// A hard-linked key is refused, since replacing it would leave its other name
+// with the old key, and a pair that does not belong together is refused
+// before anything is written.
+func TestDeployRefusesHardLinksAndMismatchedPairs(t *testing.T) {
+	dir := ownedDir(t)
+	cert, key := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
+	if err := os.WriteFile(key, []byte("old key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(key, filepath.Join(dir, "other.key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deployTo(t, dir, issue(t, "ec", "a.example.test"), "", 0, cert, key); err == nil || !strings.Contains(err.Error(), "hard links") {
+		t.Fatalf("a hard-linked key: %v", err)
+	}
+	if _, err := os.Stat(cert); !os.IsNotExist(err) {
+		t.Fatal("the certificate was written beside a refused key")
+	}
+
+	a, b := issue(t, "ec", "a.example.test"), issue(t, "ec", "b.example.test")
+	mixed := material{cert: a.cert, key: b.key}
+	_, err := deployTo(t, dir, mixed, "", 0, filepath.Join(dir, "new.crt"), filepath.Join(dir, "new.key"))
+	if err == nil || !strings.Contains(err.Error(), "do not belong together") {
+		t.Fatalf("a mismatched pair: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "log")); !os.IsNotExist(err) {
+		t.Fatal("a command ran for a mismatched pair")
 	}
 }

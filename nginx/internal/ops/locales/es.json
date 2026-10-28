@@ -1,7 +1,7 @@
 {
   "nginx.description": "Instala Certificados en nginx. Encuentra los certificados que sirve cada nginx en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración con `nginx -t` y recargando solo cuando la prueba pasa.",
   "nginx.setting.ssl_certificate.description": "El archivo del que nginx lee el Certificado, escrito como el Certificado seguido de su cadena. Un Destino descubierto nombra el archivo que nginx realmente carga, con los enlaces simbólicos resueltos.",
-  "nginx.setting.ssl_certificate_key.description": "El archivo del que nginx lee la clave privada.\n\nAmbos archivos conservan los permisos, el propietario y la etiqueta SELinux de los archivos que reemplazan; un archivo nuevo queda en `0600`.",
+  "nginx.setting.ssl_certificate_key.description": "El archivo del que nginx lee la clave privada.\n\nAmbos archivos conservan todo lo de los archivos que reemplazan salvo su contenido: propietario, modo, ACL y demás atributos extendidos, incluida la etiqueta SELinux. Un archivo nuevo es `0600`.",
   "nginx.setting.test.label": "Comando de prueba",
   "nginx.setting.test.description": "Comprueba la configuración después de escribir los archivos y antes de la recarga. Cuando falla, se restauran los archivos anteriores y no se recarga nada. Un Destino descubierto nombra el binario y la configuración propios de la instancia.",
   "nginx.setting.reload.label": "Comando de recarga",
@@ -19,5 +19,10 @@
   "nginx.warning.shared_certificate": "`{path}` lo leen {count} instancias de nginx ({instances}) y no aparece en la lista. Una renovación escrita ahí solo surte efecto en las instancias que se recarguen después, y las demás siguen sirviendo el certificado anterior desde la memoria mientras el archivo en disco ya no lo muestra. Dale a cada instancia su propia copia del certificado y de la clave en una ruta que solo ella lea, para que cada una se pueda renovar y recargar por separado.",
   "nginx.warning.key_conflict.key": "`{key}` (en {locations})",
   "nginx.warning.key_conflict.same_bytes": "`{path}` se usa con {count} archivos de clave distintos: {keys}. Todas estas claves contienen los mismos bytes, así que haz que todas apunten a un solo archivo: una renovación que escribe solo uno deja los demás obsoletos, y la siguiente recarga falla con una clave que ya no corresponde a su certificado.",
-  "nginx.warning.key_conflict.different": "`{path}` se usa con {count} archivos de clave distintos: {keys}. Las claves difieren, así que al menos uno de estos servidores no está ejecutando la configuración que hay en disco: nginx rechaza un certificado y una clave que no corresponden."
+  "nginx.warning.key_conflict.different": "`{path}` se usa con {count} archivos de clave distintos: {keys}. Las claves difieren, así que al menos uno de estos servidores no está ejecutando la configuración que hay en disco: nginx rechaza un certificado y una clave que no corresponden.",
+  "nginx.warning.not_suggested": "`{path}` no se sugiere: {problems}.",
+  "nginx.problem.acme_managed": "`{path}` está bajo `{dir}`, que gestiona otro cliente ACME, y ambos se sobrescribirían",
+  "nginx.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
+  "nginx.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",
+  "nginx.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}"
 }

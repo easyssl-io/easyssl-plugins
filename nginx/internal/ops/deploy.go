@@ -2,10 +2,7 @@ package ops
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -13,13 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
-)
 
-// defaultMode is a new file's mode, when there is no file being replaced to
-// copy one from. The Certificate file is public, but nginx's master reads both
-// as root, so the stricter mode costs nothing and one rule is easier to trust.
-const defaultMode os.FileMode = 0o600
+	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
+)
 
 // liveNote is the last line of a successful run. It is there because the
 // success means less than it seems to: `nginx -s reload`, and `systemctl
@@ -57,9 +52,20 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if certPath == keyPath {
 		return fmt.Errorf("ssl_certificate and ssl_certificate_key are both %s; nginx reads a certificate and a key, and one file holding both is not what this Plugin writes", certPath)
 	}
-	leaf, err := parseLeaf(req.CertificatePem)
+	leaf, err := pemfile.ParseLeaf(req.CertificatePem)
 	if err != nil {
 		return err
+	}
+	if pemfile.EncryptedKey([]byte(req.PrivateKeyPem)) {
+		return errors.New("the Deployment's private key is encrypted, which nginx could not load without its ssl_password_file")
+	}
+	if err := pemfile.PairMatches([]byte(req.CertificatePem), []byte(req.PrivateKeyPem)); err != nil {
+		return fmt.Errorf("the Deployment's certificate and key do not belong together: %w", err)
+	}
+	for _, p := range []string{certPath, keyPath} {
+		if probs := pathProblems(p); len(probs) > 0 {
+			return fmt.Errorf("nothing was written: %s", probs[0].In(l10n.English))
+		}
 	}
 	serving := blocksServing(certPath)
 	if err := checkPairing(certPath, keyPath, serving); err != nil {
@@ -69,21 +75,15 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 		return err
 	}
 
-	fullchain := joinPEM(req.CertificatePem, req.ChainPem)
-	certOld, err := write(certPath, []byte(fullchain), stdout)
+	fullchain := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
-		return err
-	}
-	keyOld, err := write(keyPath, []byte(req.PrivateKeyPem), stdout)
-	if err != nil {
-		restore(certPath, certOld, stdout, stderr)
 		return err
 	}
 
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingTest])
 	if err := runScript(ctx, req.Settings[SettingTest], stdout, stderr); err != nil {
-		restore(certPath, certOld, stdout, stderr)
-		restore(keyPath, keyOld, stdout, stderr)
+		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
@@ -106,14 +106,6 @@ func target(setting string) (string, error) {
 		return filepath.Clean(setting), nil
 	}
 	return real, err
-}
-
-func parseLeaf(certificatePEM string) (*x509.Certificate, error) {
-	block, _ := pem.Decode([]byte(certificatePEM))
-	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, errors.New("the Deployment carries no PEM certificate")
-	}
-	return x509.ParseCertificate(block.Bytes)
 }
 
 // checkPairing refuses a Target whose key file is not the one nginx pairs its
@@ -186,137 +178,6 @@ func blocksServing(path string) []block {
 				}
 			}
 		}
-	}
-	return out
-}
-
-// previous is what a write replaced, for restore: nil data when there was
-// no file.
-type previous struct {
-	data []byte
-	info os.FileInfo
-}
-
-// write puts data at path so a reader sees either the old file or the new
-// one, never part of either, and returns what it replaced.
-//
-// The temporary file is created in the destination directory, so the rename
-// is atomic, at 0600 so it is never readable by others on the way. It then
-// takes the replaced file's mode, owner and group, and its SELinux label when
-// it has one, so nginx reads it exactly as it read the old one; a file with
-// nothing to copy from keeps 0600 and the Plugin's own owner, which under the
-// Agent is root.
-func write(path string, data []byte, out io.Writer) (previous, error) {
-	var old previous
-	info, err := os.Stat(path)
-	switch {
-	case err == nil:
-		if old.data, err = os.ReadFile(path); err != nil {
-			return old, err
-		}
-		old.info = info
-	case !errors.Is(err, os.ErrNotExist):
-		return old, err
-	}
-	if err := writeAtomic(path, data, old.info); err != nil {
-		return old, fmt.Errorf("writing %s: %w", path, err)
-	}
-	fmt.Fprintf(out, "wrote %s (%s)\n", path, describePerms(path, old.info))
-	return old, nil
-}
-
-func writeAtomic(path string, data []byte, like os.FileInfo) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	suffix := make([]byte, 8)
-	if _, err := rand.Read(suffix); err != nil {
-		return err
-	}
-	tmp := filepath.Join(dir, "."+filepath.Base(path)+".easyssl-"+hex.EncodeToString(suffix))
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, defaultMode)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp) // a no-op once the rename has succeeded
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	if like != nil {
-		if err := os.Chmod(tmp, like.Mode().Perm()); err != nil {
-			return err
-		}
-		if st, ok := like.Sys().(*syscall.Stat_t); ok && os.Geteuid() == 0 {
-			if err := os.Chown(tmp, int(st.Uid), int(st.Gid)); err != nil {
-				return err
-			}
-		}
-		if err := copyLabel(path, tmp); err != nil {
-			return err
-		}
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return err
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
-}
-
-func describePerms(path string, like os.FileInfo) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "?"
-	}
-	owner := ""
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		owner = fmt.Sprintf(", owner %d:%d", st.Uid, st.Gid)
-	}
-	how := "copied from the file it replaced"
-	if like == nil {
-		how = "a new file"
-	}
-	return fmt.Sprintf("mode %04o%s, %s", info.Mode().Perm(), owner, how)
-}
-
-// restore puts back what write replaced, or removes a file that did not exist
-// before. Best effort and reported: the run is already failing, and what it
-// could not undo is what the operator needs to read.
-func restore(path string, old previous, stdout, stderr io.Writer) {
-	var err error
-	if old.info == nil {
-		err = os.Remove(path)
-	} else {
-		err = writeAtomic(path, old.data, old.info)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(stderr, "could not put back %s: %v\n", path, err)
-		return
-	}
-	if old.info == nil {
-		fmt.Fprintf(stdout, "removed %s, which did not exist before\n", path)
-	} else {
-		fmt.Fprintf(stdout, "put back the previous %s\n", path)
-	}
-}
-
-// joinPEM is the certificate followed by its chain, each ending in one newline.
-func joinPEM(cert, chain string) string {
-	out := strings.TrimRight(cert, "\n") + "\n"
-	if c := strings.TrimSpace(chain); c != "" {
-		out += c + "\n"
 	}
 	return out
 }
