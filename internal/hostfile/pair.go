@@ -25,10 +25,15 @@ type previous struct {
 // directory belongs to (WriteAs, with op), then reads both back and checks
 // they belong together, so a file changed between the two writes is caught
 // before a reload loads it. It refuses to replace an encrypted key, whose
-// protection the new one would not keep. Any failure puts back what it had
-// already written.
+// protection the new one would not keep, before writing anything. Any later
+// failure puts back what it had already written.
 func WritePair(op, certPath, keyPath string, cert, key []byte, stdout, stderr io.Writer) (*Written, error) {
 	w := &Written{op: op}
+	if old, err := ReadSafely(keyPath); err != nil {
+		return nil, fmt.Errorf("reading the current %s: %w", keyPath, err)
+	} else if old != nil && pemfile.EncryptedKey(old) {
+		return nil, fmt.Errorf("the current %s is encrypted, and the new key would not keep that protection, so nothing was written", keyPath)
+	}
 	for _, f := range []struct {
 		path string
 		data []byte
@@ -39,7 +44,7 @@ func WritePair(op, certPath, keyPath string, cert, key []byte, stdout, stderr io
 			return nil, fmt.Errorf("reading the current %s: %w", f.path, err)
 		}
 		if f.path == keyPath && old != nil && pemfile.EncryptedKey(old) {
-			w.Restore(stdout, stderr)
+			w.Restore(stdout, stderr) // encrypted since the check above
 			return nil, fmt.Errorf("the current %s is encrypted, and the new key would not keep that protection", keyPath)
 		}
 		if err := WriteAs(op, f.path, f.data, false); err != nil {
