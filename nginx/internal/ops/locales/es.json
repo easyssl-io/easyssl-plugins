@@ -21,6 +21,7 @@
   "nginx.warning.key_conflict.same_bytes": "`{path}` se usa con {count} archivos de clave distintos: {keys}. Todas estas claves contienen los mismos bytes, así que haz que todas apunten a un solo archivo: una renovación que escribe solo uno deja los demás obsoletos, y la siguiente recarga falla con una clave que ya no corresponde a su certificado.",
   "nginx.warning.key_conflict.different": "`{path}` se usa con {count} archivos de clave distintos: {keys}. Las claves difieren, así que al menos uno de estos servidores no está ejecutando la configuración que hay en disco: nginx rechaza un certificado y una clave que no corresponden.",
   "nginx.warning.not_suggested": "`{path}` no se sugiere: {problems}.",
+  "nginx.warning.not_a_file": "`{value}` (`{at}`) no es el nombre de un archivo (contiene una variable, o empieza por `data:`, `engine:` o `store:`), así que un Despliegue no tiene archivo que escribir, y el certificado de ahí no se sugiere",
   "nginx.problem.acme_managed": "`{path}` está bajo `{dir}`, que gestiona otro cliente ACME, y ambos se sobrescribirían",
   "nginx.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
   "nginx.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",

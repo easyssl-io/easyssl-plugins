@@ -158,6 +158,8 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			refs = append(refs, c)
 		}
 	}
+	refs, notFiles := filesOnly(refs)
+	warnings = append(warnings, notFiles...)
 	grouped, conflicts := group(refs)
 	for _, c := range grouped {
 		if w := warnShared(c, found); len(w) != 0 {

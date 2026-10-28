@@ -48,6 +48,11 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 			return fmt.Errorf("the %q setting has no value; the Server should not have queued this Deployment", k)
 		}
 	}
+	for k, key := range map[string]bool{SettingCertificate: false, SettingKey: true} {
+		if notAFile(req.Settings[k], key) {
+			return fmt.Errorf("%s is %q, which nginx does not read from one file (a variable, `data:`, `engine:` or `store:`), so there is no file to write", k, shorten(req.Settings[k]))
+		}
+	}
 	certPath, err := target(req.Settings[SettingCertificate])
 	if err != nil {
 		return err

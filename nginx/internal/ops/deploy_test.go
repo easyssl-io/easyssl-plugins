@@ -306,3 +306,53 @@ func TestEncryptedKeyIsNotSuggested(t *testing.T) {
 		t.Fatal("a file changed")
 	}
 }
+
+// A value nginx does not read from one file is a warning, never a suggestion,
+// and a certificate file one block pairs with such a key is not suggested
+// anywhere (#222). A Target naming one by hand is refused before writing.
+func TestNotAFileIsNotSuggested(t *testing.T) {
+	ok, eng := issue(t, "ec", "ok.example.test"), issue(t, "ec", "eng.example.test")
+	root := tree(t, map[string]string{
+		"ok.crt": ok.cert, "ok.key": ok.key, "eng.crt": eng.cert, "eng.key": eng.key,
+		"nginx.conf": `http {
+  server { listen 8441 ssl; server_name ok.test; ssl_certificate /ROOT/ok.crt; ssl_certificate_key /ROOT/ok.key; }
+  server { listen 8442 ssl; server_name a.test b.test; ssl_certificate /ROOT/w/$ssl_server_name.crt; ssl_certificate_key /ROOT/w/$ssl_server_name.key; }
+  server { listen 8443 ssl; server_name d.test; ssl_certificate "data:-----BEGIN CERTIFICATE-----
+MIIBmTCCAT+gAwIBAgIUQ...
+-----END CERTIFICATE-----"; ssl_certificate_key /ROOT/ok.key; }
+  server { listen 8444 ssl; server_name e.test; ssl_certificate /ROOT/eng.crt; ssl_certificate_key engine:pkcs11:id_45; }
+  server { listen 8445 ssl; server_name e2.test; ssl_certificate /ROOT/eng.crt; ssl_certificate_key /ROOT/eng.key; }
+  server { listen 8446 ssl; server_name s.test; ssl_certificate /ROOT/ok.crt; ssl_certificate_key store:pkcs11:token=t; }
+} events {}`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 {
+		t.Errorf("suggested %v, want nothing: ok.crt is paired with a store: key, eng.crt with an engine: key", targets)
+	}
+	for _, want := range [][]string{
+		{"`" + root + "/w/$ssl_server_name.crt` (`pid 100:" + conf + ":3`) is not the name of one file"},
+		{"`data:-----BEGIN CERTIFICATE-----…` (`pid 100:" + conf + ":4`)"},
+		{"`engine:pkcs11:id_45` (`pid 100:" + conf + ":7`)"},
+		{"`store:pkcs11:token=t` (`pid 100:" + conf + ":9`)"},
+	} {
+		if !hasWarning(warnings, want...) {
+			t.Errorf("no warning saying %q in %q", want, warnings)
+		}
+	}
+	for _, s := range []map[string]string{
+		{SettingCertificate: root + "/w/$host.crt", SettingKey: root + "/k.key"},
+		{SettingCertificate: root + "/ok.crt", SettingKey: "engine:pkcs11:id_45"},
+	} {
+		_, err := deployTo(t, root, ok, "", 0, s[SettingCertificate], s[SettingKey])
+		if err == nil || !strings.Contains(err.Error(), "does not read from one file") {
+			t.Errorf("%v: deploy = %v, want a refusal", s, err)
+		}
+	}
+	if _, err := os.Stat(root + "/w"); !os.IsNotExist(err) || content(t, root+"/ok.key") != ok.key {
+		t.Error("a refused Deployment wrote something")
+	}
+}
