@@ -1,4 +1,4 @@
-package ops
+package hostfile
 
 import (
 	"bytes"
@@ -60,7 +60,9 @@ const (
 	fsAppendFl    = 0x00000020
 )
 
-func immutable(path string) bool {
+// Immutable reports a file chattr made immutable or append-only, which a
+// rename cannot replace.
+func Immutable(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
 		return false

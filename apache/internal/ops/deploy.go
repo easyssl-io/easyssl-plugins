@@ -3,7 +3,6 @@ package ops
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,8 @@ import (
 	"syscall"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // Deploy installs a Certificate at an Apache Target. Before writing anything
@@ -46,14 +47,14 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if certPath == keyPath {
 		return fmt.Errorf("SSLCertificateFile and SSLCertificateKeyFile are both %s; this Plugin writes the certificate and the key as two files", certPath)
 	}
-	leaf, err := parseLeaf(req.CertificatePem)
+	leaf, err := pemfile.ParseLeaf(req.CertificatePem)
 	if err != nil {
 		return err
 	}
-	if encryptedKey([]byte(req.PrivateKeyPem)) {
+	if pemfile.EncryptedKey([]byte(req.PrivateKeyPem)) {
 		return errors.New("the Deployment's private key is encrypted, which Apache could not load without a passphrase")
 	}
-	if err := pairMatches([]byte(req.CertificatePem), []byte(req.PrivateKeyPem)); err != nil {
+	if err := pemfile.PairMatches([]byte(req.CertificatePem), []byte(req.PrivateKeyPem)); err != nil {
 		return fmt.Errorf("the Deployment's certificate and key do not belong together: %w", err)
 	}
 
@@ -114,8 +115,8 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 
 	// Steps 6 to 8.
-	fullchain := []byte(joinPEM(req.CertificatePem, req.ChainPem))
-	written, err := writePair(certPath, keyPath, fullchain, []byte(req.PrivateKeyPem), stdout, stderr)
+	fullchain := []byte(pemfile.JoinPEM(req.CertificatePem, req.ChainPem))
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, fullchain, []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	out, err := runSetting(ctx, req.Settings[SettingTest], m.runEnv(), m.Cred)
 	io.WriteString(stdout, out)
 	if err != nil {
-		written.restore(stdout, stderr)
+		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
 
@@ -135,7 +136,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	markErrorLog(m)
 
 	if err := reload(ctx, m, req.Settings[SettingReload], stdout); err != nil {
-		written.restore(stdout, stderr)
+		written.Restore(stdout, stderr)
 		if !m.alive() {
 			return recoverMaster(ctx, m, s, stdout, stderr, fmt.Errorf("the reload command %s", describeExit(err)))
 		}
@@ -148,7 +149,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 		fmt.Fprintln(stdout, served)
 		return nil
 	}
-	written.restore(stdout, stderr)
+	written.Restore(stdout, stderr)
 	if !m.alive() {
 		return recoverMaster(ctx, m, s, stdout, stderr, err)
 	}
@@ -169,7 +170,7 @@ func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath strin
 			return errors.New(probs[0](catalog.In(l10n.English)))
 		}
 	}
-	written, err := writePair(certPath, keyPath, []byte(joinPEM(req.CertificatePem, req.ChainPem)), []byte(req.PrivateKeyPem), stdout, stderr)
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(pemfile.JoinPEM(req.CertificatePem, req.ChainPem)), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -177,7 +178,7 @@ func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath strin
 	out, err := runSetting(ctx, req.Settings[SettingTest], nil, cred{})
 	io.WriteString(stdout, out)
 	if err != nil {
-		written.restore(stdout, stderr)
+		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
@@ -202,23 +203,6 @@ func target(setting string) (string, error) {
 		return filepath.Clean(setting), nil
 	}
 	return real, err
-}
-
-func parseLeaf(certificatePEM string) (*x509.Certificate, error) {
-	block, _ := pem.Decode([]byte(certificatePEM))
-	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, errors.New("the Deployment carries no PEM certificate")
-	}
-	return x509.ParseCertificate(block.Bytes)
-}
-
-// joinPEM is the certificate followed by its chain, each ending in one newline.
-func joinPEM(cert, chain string) string {
-	out := strings.TrimRight(cert, "\n") + "\n"
-	if c := strings.TrimSpace(chain); c != "" {
-		out += c + "\n"
-	}
-	return out
 }
 
 // pair is a certificate file and the key mod_ssl pairs with it, by position.
@@ -286,13 +270,13 @@ func preflight(m *master, s *serverCfg, skip string) error {
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		if encryptedKey(kb) {
+		if pemfile.EncryptedKey(kb) {
 			if fi, err := os.Stat(p.key); err == nil && fi.ModTime().After(loaded.ModTime().Add(clockSlack)) {
 				return fmt.Errorf("%s is encrypted and changed since pid %d last loaded its configuration, so the reload would need its passphrase", p.key, m.PID)
 			}
 			continue
 		}
-		der, err := leafDER(cb)
+		der, err := pemfile.LeafDER(cb)
 		if err != nil {
 			continue
 		}
@@ -300,11 +284,11 @@ func preflight(m *master, s *serverCfg, skip string) error {
 		if err != nil {
 			continue // a certificate this Plugin cannot read is Apache's to judge
 		}
-		key, err := parseKey(kb)
+		key, err := pemfile.ParseKey(kb)
 		if err != nil {
 			continue
 		}
-		if !keyMatches(leaf, key) {
+		if !pemfile.KeyMatches(leaf, key) {
 			return fmt.Errorf("the key %s does not match the certificate %s (%s), and mod_ssl refuses that pair on the reload (AH02565)", p.key, p.cert, p.at)
 		}
 	}
@@ -316,8 +300,8 @@ func preflight(m *master, s *serverCfg, skip string) error {
 // process's environment; a non-root c runs it as that user.
 func runSetting(ctx context.Context, script string, env []string, c cred) (string, error) {
 	var sc *syscall.Credential
-	if !c.isRoot() {
-		sc = c.sys()
+	if !c.IsRoot() {
+		sc = c.Sys()
 	}
 	return runCmd(sc, env, "/bin/sh", "-e", "-c", script)
 }
@@ -349,120 +333,4 @@ func describeExit(err error) string {
 		return "was killed by a signal"
 	}
 	return "could not be run: " + err.Error()
-}
-
-// written is what a Deployment replaced, for putting it back.
-type written struct{ files []previous }
-
-// previous is one replaced file: nil data when there was none.
-type previous struct {
-	path string
-	data []byte
-}
-
-// writePair writes the full chain and the key, each as the user its directory
-// belongs to (writeAs), then reads both back and checks they still belong
-// together, so a file changed between the two writes is caught before the
-// reload loads it.
-func writePair(certPath, keyPath string, cert, key []byte, stdout, stderr io.Writer) (*written, error) {
-	w := &written{}
-	for _, f := range []struct {
-		path string
-		data []byte
-	}{{certPath, cert}, {keyPath, key}} {
-		old, err := readSafely(f.path)
-		if err != nil {
-			w.restore(stdout, stderr)
-			return nil, fmt.Errorf("reading the current %s: %w", f.path, err)
-		}
-		if f.path == keyPath && old != nil && encryptedKey(old) {
-			w.restore(stdout, stderr)
-			return nil, fmt.Errorf("the current %s is encrypted, and the new key would not keep that protection", keyPath)
-		}
-		if err := writeAs(f.path, f.data, false); err != nil {
-			w.restore(stdout, stderr)
-			return nil, fmt.Errorf("writing %s: %w", f.path, err)
-		}
-		w.files = append(w.files, previous{f.path, old})
-		fmt.Fprintf(stdout, "wrote %s (%s)\n", f.path, describeMeta(f.path, old != nil))
-	}
-	cb, err1 := readSafely(certPath)
-	kb, err2 := readSafely(keyPath)
-	if err := errors.Join(err1, err2); err != nil {
-		w.restore(stdout, stderr)
-		return nil, err
-	}
-	if err := pairMatches(cb, kb); err != nil {
-		w.restore(stdout, stderr)
-		return nil, fmt.Errorf("the files read back do not belong together (%v), so something else changed them; the previous files were put back", err)
-	}
-	return w, nil
-}
-
-// readSafely reads a file without following a symlink in its last component,
-// and only when it belongs to whoever writes it (writerFor), so a path a user
-// swapped for a link to another user's file is refused instead of read as
-// root and later written back into the user's directory. A missing file is
-// nil with no error.
-func readSafely(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	w, err := writerFor(path)
-	if err != nil {
-		return nil, err
-	}
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-		if w != nil && st.Uid != w.UID || st.Nlink > 1 {
-			return nil, fmt.Errorf("%w: %s changed owner or gained a hard link since it was checked", errUnsafe, path)
-		}
-	}
-	return io.ReadAll(io.LimitReader(f, maxFile))
-}
-
-// maxFile bounds what is read from a certificate or key file.
-const maxFile = 1 << 20
-
-// restore puts back what writePair replaced, last written first, or removes a
-// file that did not exist before. Best effort and reported: the run is
-// already failing, and what it could not undo is what the operator needs to
-// read.
-func (w *written) restore(stdout, stderr io.Writer) {
-	if w == nil {
-		return
-	}
-	for i := len(w.files) - 1; i >= 0; i-- {
-		p := w.files[i]
-		err := writeAs(p.path, p.data, p.data == nil)
-		switch {
-		case err != nil && !errors.Is(err, os.ErrNotExist):
-			fmt.Fprintf(stderr, "could not put back %s: %v\n", p.path, err)
-		case p.data == nil:
-			fmt.Fprintf(stdout, "removed %s, which did not exist before\n", p.path)
-		default:
-			fmt.Fprintf(stdout, "put back the previous %s\n", p.path)
-		}
-	}
-	w.files = nil
-}
-
-func describeMeta(path string, replaced bool) string {
-	m, err := metaOf(path)
-	if err != nil {
-		return "?"
-	}
-	how := "everything but the content kept from the file it replaced"
-	if !replaced {
-		how = "a new file"
-	}
-	return fmt.Sprintf("mode %04o, owner %d:%d, %s", uint32(m.mode.Perm()), m.uid, m.gid, how)
 }

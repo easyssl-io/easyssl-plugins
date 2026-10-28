@@ -18,6 +18,13 @@ Do not add a module at the repository root, and do not merge two Plugins into
 one module. The split is what keeps a browser-automation Plugin's dependencies
 out of a minimal Plugin's graph.
 
+Code two Plugins need identically goes in the `internal` module, not in a
+second copy: a copy is what drifts, and the Plugin it drifts in is the one that
+loses a key's ACL or misses a failed reload. `internal` takes no third-party
+dependency, so a Plugin importing it inherits none, and nothing in it is
+Plugin-specific: a message a reader sees is worded by the Plugin, in its own
+catalog, from the data `internal` returns.
+
 ## What a Plugin is
 
 A Plugin is a standalone executable, not a library linked into the Agent. The

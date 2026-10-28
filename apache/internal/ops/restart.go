@@ -13,6 +13,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/tlscheck"
 )
 
 // Starting a master again after a reload made it exit. The files are already
@@ -26,7 +29,7 @@ const restartWait = 10 * time.Second
 // recoverMaster starts m again by whatever started it, and reports the run as
 // failed in every case: the Deployment did not install its Certificate.
 func recoverMaster(ctx context.Context, m *master, s *serverCfg, stdout, stderr io.Writer, cause error) error {
-	if errors.Is(cause, errMasterGone) {
+	if errors.Is(cause, tlscheck.ErrGone) {
 		fmt.Fprintf(stdout, "Apache (pid %d) stopped during the reload\n", m.PID)
 	} else {
 		fmt.Fprintf(stdout, "Apache (pid %d) stopped during the reload: %v\n", m.PID, cause)
@@ -111,7 +114,7 @@ func needsDialog(m *master, s *serverCfg) bool {
 		return false
 	}
 	for _, p := range loadedPairs(m, s) {
-		if b, err := os.ReadFile(p.key); err == nil && encryptedKey(b) {
+		if b, err := os.ReadFile(p.key); err == nil && pemfile.EncryptedKey(b) {
 			return true
 		}
 	}
@@ -144,8 +147,8 @@ func startSnapshot(ctx context.Context, m *master, stdout io.Writer) (string, er
 	cmd.Env = m.Env
 	cmd.Dir = "/"
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if !m.Cred.isRoot() {
-		cmd.SysProcAttr.Credential = m.Cred.sys()
+	if !m.Cred.IsRoot() {
+		cmd.SysProcAttr.Credential = m.Cred.Sys()
 	}
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -184,7 +187,7 @@ func startTransient(ctx context.Context, m *master, argv []string, stdout io.Wri
 	} else {
 		args = append(args, "-p", "Type=forking", "-p", "PIDFile="+m.PidFile)
 	}
-	if !m.Cred.isRoot() {
+	if !m.Cred.IsRoot() {
 		args = append(args, "-p", fmt.Sprintf("User=%d", m.Cred.UID), "-p", fmt.Sprintf("Group=%d", m.Cred.GID))
 		var gs []string
 		for _, g := range m.Cred.Groups {

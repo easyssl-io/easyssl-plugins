@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/tlscheck"
 )
 
 // What httpd itself reports about a master's configuration, and how httpd picks
@@ -313,16 +314,10 @@ type endpoint struct{ ip, port, sni, alg string }
 
 // String reads "ADDR:PORT sni=NAME", plus "key=ALG" when the vhost serves
 // more than one certificate and a client must ask for this one's key type.
-func (e endpoint) String() string {
-	sni := e.sni
-	if sni == "" {
-		sni = "(none)"
-	}
-	out := hostKey(e.ip, e.port) + " sni=" + sni
-	if e.alg != "" {
-		out += " key=" + e.alg
-	}
-	return out
+func (e endpoint) String() string { return e.check().String() }
+
+func (e endpoint) check() tlscheck.Endpoint {
+	return tlscheck.Endpoint{IP: e.ip, Port: e.port, SNI: e.sni, Alg: e.alg}
 }
 
 func splitAddr(a string) (string, string) {

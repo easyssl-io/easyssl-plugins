@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // Describe answers with what this Plugin is and declares, reading nothing from
@@ -244,7 +245,7 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 				l.keyPath = resolveIn(s.root(m), keys[i].args[0])
 			} else {
 				at := l.where
-				if b, err := os.ReadFile(l.certPath); err == nil && hasPrivateKey(b) {
+				if b, err := os.ReadFile(l.certPath); err == nil && pemfile.HasPrivateKey(b) {
 					l.problems = append(l.problems, func(p l10n.Printer) string {
 						return p.T("apache.problem.key_in_cert",
 							"the private key is inside the certificate file (no `SSLCertificateKeyFile` for `{at}`), and a Deployment writes them as two files",
@@ -465,7 +466,7 @@ func (sv *survey) fileProblems(f *certFile) []msg {
 		out = append(out, pathProblems(path)...)
 	}
 	for k := range keys {
-		if b, err := os.ReadFile(k); err == nil && encryptedKey(b) {
+		if b, err := os.ReadFile(k); err == nil && pemfile.EncryptedKey(b) {
 			key := k
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.encrypted_key", "its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection", "key", key)
@@ -504,10 +505,10 @@ func dedupe(in []msg) []msg {
 
 // readableBy asks the kernel, as the master, whether it can read a file.
 func readableBy(c cred, path string) bool {
-	if c.isRoot() {
+	if c.IsRoot() {
 		return true
 	}
-	_, err := runCmd(c.sys(), []string{"PATH=/usr/bin:/bin"}, "/bin/sh", "-c", `test -r "$1"`, "sh", path)
+	_, err := runCmd(c.Sys(), []string{"PATH=/usr/bin:/bin"}, "/bin/sh", "-c", `test -r "$1"`, "sh", path)
 	return err == nil
 }
 

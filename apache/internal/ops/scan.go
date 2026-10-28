@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 )
 
 // Finding the running Apache masters and working out, for each, how it was
@@ -64,20 +66,7 @@ type master struct {
 
 // cred is the filesystem uid and gid and the supplementary groups: what the
 // kernel checks when the process opens a file, read from /proc/<pid>/status.
-type cred struct {
-	UID, GID uint32
-	Groups   []uint32
-}
-
-func (c cred) isRoot() bool { return c.UID == 0 }
-
-func (c cred) sys() *syscall.Credential {
-	g := c.Groups
-	if g == nil {
-		g = []uint32{}
-	}
-	return &syscall.Credential{Uid: c.UID, Gid: c.GID, Groups: g}
-}
+type cred = hostfile.Cred
 
 // supervisor is what started a master and, where it owns reloading, the name
 // it is known by there.
@@ -372,8 +361,8 @@ func (m *master) runEnv() []string {
 // reach is not reachable here either.
 func (m *master) run(ctx context.Context, args ...string) (string, error) {
 	var c *syscall.Credential
-	if !m.Cred.isRoot() {
-		c = m.Cred.sys()
+	if !m.Cred.IsRoot() {
+		c = m.Cred.Sys()
 	}
 	return runCmd(c, m.runEnv(), m.Exe, append(append([]string{}, m.Replay...), args...)...)
 }

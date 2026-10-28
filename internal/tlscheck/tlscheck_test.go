@@ -1,28 +1,17 @@
-package ops
+package tlscheck
 
 import (
-	"crypto"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"net"
 	"testing"
-)
 
-func pemKey(t *testing.T, k crypto.Signer) []byte {
-	t.Helper()
-	der, err := x509.MarshalPKCS8PrivateKey(k)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
-}
+	"github.com/easyssl-io/easyssl-plugins/internal/testkeys"
+)
 
 func tlsPair(t *testing.T, alg, name string) (tls.Certificate, []byte) {
 	t.Helper()
-	k := newKey(t, alg)
-	c := selfSigned(t, k, name)
-	pair, err := tls.X509KeyPair(c, pemKey(t, k))
+	k := testkeys.Key(t, alg)
+	pair, err := tls.X509KeyPair(testkeys.Cert(t, k, name), testkeys.PEM(t, k))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,8 +19,7 @@ func tlsPair(t *testing.T, alg, name string) (tls.Certificate, []byte) {
 }
 
 // TestServedPicksKeyType checks that an endpoint asking for a key type gets
-// that one from a server holding both, as a dual RSA and ECDSA virtual host
-// does.
+// that one from a server holding both, as a dual RSA and ECDSA server does.
 func TestServedPicksKeyType(t *testing.T) {
 	rsaPair, rsaDER := tlsPair(t, "rsa", "dual.test")
 	ecPair, ecDER := tlsPair(t, "ec", "dual.test")
@@ -51,9 +39,13 @@ func TestServedPicksKeyType(t *testing.T) {
 	}()
 	_, port, _ := net.SplitHostPort(ln.Addr().String())
 	for alg, der := range map[string][]byte{"RSA": rsaDER, "ECDSA": ecDER} {
-		if got := served(endpoint{ip: "127.0.0.1", port: port, sni: "dual.test", alg: alg}); got != fingerprint(der) {
-			t.Errorf("asking for %s: got %s, want %s", alg, got, fingerprint(der))
+		if got := Served(Endpoint{IP: "127.0.0.1", Port: port, SNI: "dual.test", Alg: alg}); got != Fingerprint(der) {
+			t.Errorf("asking for %s: got %s, want %s", alg, got, Fingerprint(der))
 		}
+	}
+	var out discard
+	if _, err := Verify(func() bool { return true }, []Endpoint{{IP: "127.0.0.1", Port: port, SNI: "dual.test", Alg: "ECDSA"}}, ecDER, out); err != nil {
+		t.Errorf("Verify: %v", err)
 	}
 }
 
@@ -72,7 +64,17 @@ func TestServedPlainHTTP(t *testing.T) {
 		c.Close()
 	}()
 	_, port, _ := net.SplitHostPort(ln.Addr().String())
-	if got := served(endpoint{ip: "127.0.0.1", port: port}); got != "plain HTTP, not TLS" {
+	if got := Served(Endpoint{IP: "127.0.0.1", Port: port}); got != "plain HTTP, not TLS" {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestVerifyGone(t *testing.T) {
+	if _, err := Verify(func() bool { return false }, []Endpoint{{IP: "127.0.0.1", Port: "1"}}, nil, discard{}); err != ErrGone {
+		t.Errorf("Verify with the server gone = %v, want ErrGone", err)
+	}
+}
+
+type discard struct{}
+
+func (discard) Write(p []byte) (int, error) { return len(p), nil }

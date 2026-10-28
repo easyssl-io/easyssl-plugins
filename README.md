@@ -45,8 +45,12 @@ Cross-compiling one plugin for a Linux host:
 cd generic-cli && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ../dist/generic-cli-linux-arm64 .
 ```
 
-Code shared between plugins will land as its own sibling module here when a
-second plugin needs it, so sharing costs no cross-repository pin.
+Code more than one plugin needs is the `internal` module beside them:
+`hostfile` replaces a certificate or key file so that only its content changes,
+`pemfile` reads certificates and keys, and `tlscheck` asks a server which
+certificate it presents. A plugin reaches it through a relative `replace`, so
+sharing costs no cross-repository pin, and its path keeps it importable by the
+plugins here alone.
 
 ## Why this is open source
 
