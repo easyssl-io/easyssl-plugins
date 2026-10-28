@@ -79,7 +79,7 @@ WARN `@ROOT@/AB/ab.crt` is not suggested: it is configured at server level (`@RO
 WARN `@ROOT@/H/h.crt` is not suggested: nothing listens where the virtual host at `@ROOT@/H/httpd.conf:27` could be reached (`*:9448`, no matching `Listen`), so it is never reached.
 WARN `@ROOT@/I/i.crt` is not suggested: `SSLEngine` is off in the virtual host at `@ROOT@/I/httpd.conf:21`, so it never serves this certificate.
 WARN `@ROOT@/J/j2.crt` is not suggested: the virtual host at `@ROOT@/J/httpd.conf:24` is on `*:9450`, whose default virtual host (`@ROOT@/J/httpd.conf:21`) does not use TLS, so that port speaks plain HTTP.
-WARN `@ROOT@/L/l.crt` is not suggested: it is paired with different key files (`@ROOT@/L/l-copy.key`, `@ROOT@/L/l.key`); point every use at one file.
+WARN `@ROOT@/L/l.crt` is not suggested: it is paired with several key files holding the same key (`@ROOT@/L/l-copy.key`, `@ROOT@/L/l.key`); point every use at one file, since a renewal writes only one and the next reload then fails on a key that no longer matches.
 WARN `@ROOT@/M/m.crt` is not suggested: it is used with `SSLCertificateChainFile` (`@ROOT@/M/httpd.conf:26`), which is deprecated since httpd 2.4.8: `SSLCertificateFile` loads the intermediate certificates itself, and a Deployment writes the full chain there, so the intermediates would be sent twice. Remove the `SSLCertificateChainFile` directive and put the chain in the certificate file.
 WARN `@ROOT@/N/n.crt` is not suggested: its key `@ROOT@/N/n.key` is protected by a passphrase, and a Deployment cannot keep that protection.
 WARN `@ROOT@/O/o.crt` is not suggested: the virtual host at `@ROOT@/O/httpd.conf:21` expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves.

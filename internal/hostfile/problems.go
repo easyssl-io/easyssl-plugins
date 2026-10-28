@@ -1,7 +1,9 @@
 package hostfile
 
 import (
+	"bytes"
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -59,4 +61,24 @@ func Problems(path string) []Problem {
 		out = append(out, Problem{Kind: Unsafe, Path: path, Reason: strings.TrimPrefix(err.Error(), ErrUnsafe.Error()+": ")})
 	}
 	return out
+}
+
+// SameContent reports whether every path holds identical bytes: one key in
+// several files, which a renewal writing only one of them would split. A key
+// is a few kilobytes, so the files are compared rather than hashed.
+func SameContent(paths []string) bool {
+	if len(paths) < 2 {
+		return true
+	}
+	first, err := os.ReadFile(paths[0])
+	if err != nil {
+		return false
+	}
+	for _, p := range paths[1:] {
+		b, err := os.ReadFile(p)
+		if err != nil || !bytes.Equal(b, first) {
+			return false
+		}
+	}
+	return true
 }

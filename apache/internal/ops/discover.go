@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
@@ -453,9 +454,27 @@ func (sv *survey) fileProblems(f *certFile) []msg {
 		}
 		sort.Strings(ks)
 		list := strings.Join(ks, ", ")
-		out = append(out, func(p l10n.Printer) string {
-			return p.T("apache.problem.key_conflict", "it is paired with different key files ({keys}); point every use at one file", "keys", list)
-		})
+		var files []string
+		for k := range keys {
+			files = append(files, k)
+		}
+		// Two messages rather than one with advice appended: which applies
+		// changes what the reader is told.
+		if hostfile.SameContent(files) {
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.key_conflict.same_bytes",
+					"it is paired with several key files holding the same key ({keys}); point every use at one file, "+
+						"since a renewal writes only one and the next reload then fails on a key that no longer matches",
+					"keys", list)
+			})
+		} else {
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.key_conflict.different",
+					"it is paired with different keys ({keys}), so at least one place pairs it with a key that does not match, "+
+						"and the next reload fails there",
+					"keys", list)
+			})
+		}
 	}
 	paths := []string{f.path}
 	for k := range keys {

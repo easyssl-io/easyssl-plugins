@@ -1,7 +1,6 @@
 package ops
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/wire"
+	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
@@ -273,7 +273,7 @@ func warnKeyConflict(c Certificate) l10n.Text {
 		}
 		where[r.KeyResolved] = append(where[r.KeyResolved], fmt.Sprintf("`pid %d` `%s:%d`", r.PID, r.File, r.KeyLine))
 	}
-	same := sameContent(order)
+	same := hostfile.SameContent(order)
 	return perLanguage(func(p l10n.Printer) string {
 		var parts []string
 		for _, k := range order {
@@ -297,25 +297,6 @@ func warnKeyConflict(c Certificate) l10n.Text {
 				"on disk: nginx refuses a certificate and key that do not match.",
 			"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
 	})
-}
-
-// sameContent reports whether every path holds identical bytes. A key is a few
-// kilobytes, so this compares them rather than hashing.
-func sameContent(paths []string) bool {
-	if len(paths) < 2 {
-		return true
-	}
-	first, err := os.ReadFile(paths[0])
-	if err != nil {
-		return false
-	}
-	for _, p := range paths[1:] {
-		b, err := os.ReadFile(p)
-		if err != nil || !bytes.Equal(b, first) {
-			return false
-		}
-	}
-	return true
 }
 
 // errNoConfiguration is a master whose configuration file could not be told
