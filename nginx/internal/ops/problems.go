@@ -1,10 +1,12 @@
 package ops
 
 import (
+	"os"
 	"strings"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // pathProblems words what keeps a file from being replaced safely
@@ -35,11 +37,17 @@ func pathProblems(path string) []l10n.Text {
 }
 
 // problemsOf is everything that keeps a certificate from being suggested: what
-// keeps its file or its key's from being replaced safely.
+// keeps its file or its key's from being replaced safely, and a key protected
+// by a passphrase (nginx's ssl_password_file), which a Deployment would
+// replace with an unprotected one.
 func problemsOf(c Certificate) []l10n.Text {
 	out := pathProblems(c.Path)
 	if c.Key != "" {
 		out = append(out, pathProblems(c.Key)...)
+		if b, err := os.ReadFile(c.Key); err == nil && pemfile.EncryptedKey(b) {
+			out = append(out, T("nginx.problem.encrypted_key",
+				"its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection", "key", c.Key))
+		}
 	}
 	return out
 }

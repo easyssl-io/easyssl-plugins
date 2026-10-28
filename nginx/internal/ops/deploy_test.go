@@ -279,3 +279,30 @@ func TestDeployRefusesHardLinksAndMismatchedPairs(t *testing.T) {
 		t.Fatal("a command ran for a mismatched pair")
 	}
 }
+
+// A certificate whose key is protected by a passphrase is a warning, not a
+// suggestion, and a Deployment does not replace the key.
+func TestEncryptedKeyIsNotSuggested(t *testing.T) {
+	m := issue(t, "ec", "enc.example.test")
+	enc := "-----BEGIN ENCRYPTED PRIVATE KEY-----\nAAAA\n-----END ENCRYPTED PRIVATE KEY-----\n"
+	root := tree(t, map[string]string{
+		"enc.crt":    m.cert,
+		"enc.key":    enc,
+		"nginx.conf": `http { ssl_password_file /ROOT/pass; server { listen 8443 ssl; ssl_certificate /ROOT/enc.crt; ssl_certificate_key /ROOT/enc.key; } }`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 0 || !hasWarning(warnings, "enc.crt", "passphrase") {
+		t.Fatalf("targets %v, warnings %q", targets, warnings)
+	}
+	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/enc.crt", root+"/enc.key")
+	if err == nil || !strings.Contains(err.Error(), "encrypted") {
+		t.Fatalf("deploy = %v, want a refusal", err)
+	}
+	if content(t, root+"/enc.key") != enc || content(t, root+"/enc.crt") != m.cert {
+		t.Fatal("a file changed")
+	}
+}

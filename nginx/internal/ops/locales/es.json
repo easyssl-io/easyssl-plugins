@@ -24,5 +24,6 @@
   "nginx.problem.acme_managed": "`{path}` está bajo `{dir}`, que gestiona otro cliente ACME, y ambos se sobrescribirían",
   "nginx.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
   "nginx.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",
-  "nginx.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}"
+  "nginx.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}",
+  "nginx.problem.encrypted_key": "su clave `{key}` está protegida con una frase de contraseña, y un Despliegue no puede conservar esa protección"
 }
