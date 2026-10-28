@@ -110,9 +110,11 @@ func Verify(alive func() bool, eps []Endpoint, leaf []byte, stdout io.Writer) (s
 	if len(bad) > 0 {
 		return "", fmt.Errorf("after %s, %d of %d places still did not serve the new Certificate: %s", Window, len(bad), len(eps), strings.Join(bad, ", "))
 	}
-	if len(skipped) > 0 {
+	if n := len(eps) - len(skipped); n == 0 {
+		return fmt.Sprintf("Installed and reloaded. No place could be checked for its key type: %s.", strings.Join(skipped, ", ")), nil
+	} else if len(skipped) > 0 {
 		return fmt.Sprintf("Installed, reloaded, and served at all %d places checked; %d more could not be checked for their key type: %s.",
-			len(eps)-len(skipped), len(skipped), strings.Join(skipped, ", ")), nil
+			n, len(skipped), strings.Join(skipped, ", ")), nil
 	}
 	return fmt.Sprintf("Installed, reloaded, and served at all %d places checked.", len(eps)), nil
 }

@@ -90,8 +90,8 @@ func TestServedTLS13OnlyDualServer(t *testing.T) {
 	if line, err := Verify(alive, []Endpoint{ec, rsa}, ecDER, out); err != nil || !strings.Contains(line, "1 more could not be checked") {
 		t.Errorf("Verify of the ECDSA half: %q, %v", line, err)
 	}
-	if _, err := Verify(alive, []Endpoint{rsa}, rsaDER, out); err != nil {
-		t.Errorf("Verify of the RSA half, which cannot be checked, failed: %v", err)
+	if line, err := Verify(alive, []Endpoint{rsa}, rsaDER, out); err != nil || !strings.HasPrefix(line, "Installed and reloaded. No place could be checked") {
+		t.Errorf("Verify of the RSA half, which cannot be checked: %q, %v", line, err)
 	}
 	if _, err := Verify(alive, []Endpoint{ec}, otherEC, out); err == nil {
 		t.Error("Verify passed although the ECDSA half serves another certificate")
