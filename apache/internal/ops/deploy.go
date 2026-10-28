@@ -309,16 +309,23 @@ func runSetting(ctx context.Context, script string, env []string, c cred) (strin
 	return runCmd(sc, env, "/bin/sh", "-e", "-c", script)
 }
 
-// reload runs the reload setting as root with the instance's environment,
-// after the guard when it is the graceful command.
+// reload runs the reload setting with the instance's environment. A master no
+// supervisor manages is reloaded as the user it runs as, after the guard:
+// `httpd -k graceful` reads the whole configuration before it signals, so
+// run as root against an ordinary user's master it would load that user's
+// modules, and honor their LD_LIBRARY_PATH, as root. That user can signal its
+// own master, so nothing needs more. A supervisor's reload stays root's: the
+// supervisor runs the service's own reload, under the service's settings.
 func reload(ctx context.Context, m *master, script string, stdout io.Writer) error {
+	as := cred{}
 	if m.Graceful {
 		if err := m.guard(); err != nil {
 			return fmt.Errorf("the reload was not run: %v", err)
 		}
+		as = m.Cred
 	}
 	fmt.Fprintf(stdout, "$ %s\n", script)
-	out, err := runSetting(ctx, script, m.runEnv(), cred{})
+	out, err := runSetting(ctx, script, m.runEnv(), as)
 	io.WriteString(stdout, out)
 	if err != nil {
 		return fmt.Errorf("the reload command %s", describeExit(err))
