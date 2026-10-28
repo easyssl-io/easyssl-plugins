@@ -118,7 +118,7 @@ func exeOf(pid int) string {
 	if err != nil {
 		return ""
 	}
-	return p
+	return strings.TrimSuffix(p, " (deleted)") // a binary upgraded under the master
 }
 
 // configOf finds the configuration file: an explicit -c on the command line

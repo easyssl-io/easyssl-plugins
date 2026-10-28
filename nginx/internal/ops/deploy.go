@@ -14,10 +14,12 @@ import (
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
+	"github.com/easyssl-io/easyssl-plugins/internal/tlscheck"
 )
 
-// liveNote is the last line of a successful run. It is there because the
-// success means less than it seems to: `nginx -s reload`, and `systemctl
+// liveNote is the last line of a successful run that found no place to check
+// what nginx serves (endpoints.go says which places it trusts). It is there
+// because the success then means less than it seems to: `nginx -s reload`, and `systemctl
 // reload` which runs it, returns once the signal is sent, and the master
 // applies the new configuration afterwards. If applying any part of it fails,
 // most often a `listen` it cannot bind in a file unrelated to this Target,
@@ -27,10 +29,14 @@ const liveNote = "Installed and reloaded. nginx applies a reload after this comm
 	"previous configuration if applying it fails, so this does not confirm the new Certificate is being served."
 
 // Deploy installs a Certificate at an nginx Target: it writes the full chain
-// and the key where the Target's settings say, runs the test command, and
-// reloads only when that passes. When the test fails, the files it replaced
-// are put back, so a later reload for any other reason does not pick up a
-// pair nginx refused.
+// and the key where the Target's settings say, with nothing but their content
+// changed, runs the test command, and reloads only when that passes. It then
+// asks every place the file is served (endpoints.go) which certificate it
+// presents, because nginx applies a reload after the command returns and
+// keeps its previous configuration when applying it fails. When the test
+// fails, or the new Certificate is not served, the files it replaced are put
+// back, so a later reload for any other reason does not pick up a pair nginx
+// refused, and after a reload nginx is reloaded with them again.
 //
 // There is no response document: the exit status is the answer, and what
 // happened is on stdout and stderr, which the Agent records in order.
@@ -67,13 +73,15 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 			return fmt.Errorf("nothing was written: %s", probs[0].In(l10n.English))
 		}
 	}
-	serving := blocksServing(certPath)
+	live := servingOf(certPath)
+	serving := live.blocks
 	if err := checkPairing(certPath, keyPath, serving); err != nil {
 		return err
 	}
 	if err := checkDual(certPath, leaf.PublicKeyAlgorithm, func(string) []block { return serving }); err != nil {
 		return err
 	}
+	eps := endpointsFor(live.servers, certPath, leaf.PublicKeyAlgorithm.String())
 
 	fullchain := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
 	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
@@ -86,11 +94,43 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 		written.Restore(stdout, stderr)
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
+	marks := logMarks(live.logs)
+	if err := reload(ctx, req, stdout, stderr); err != nil {
+		return fmt.Errorf("%v; the new files stay in place, and nginx keeps serving what it last loaded", err)
+	}
+	if len(live.pids) == 0 || len(eps) == 0 {
+		fmt.Fprintln(stdout, liveNote)
+		return nil
+	}
+	served, err := tlscheck.Verify(live.alive, eps, leaf.Raw, stdout)
+	if err == nil {
+		fmt.Fprintln(stdout, served)
+		return nil
+	}
+	emerg := emergSince(marks)
+	for _, l := range emerg {
+		fmt.Fprintf(stdout, "nginx logged: %s\n", l)
+	}
+	written.Restore(stdout, stderr)
+	if errors.Is(err, tlscheck.ErrGone) {
+		return fmt.Errorf("%v after the reload; the previous files were put back, and nginx has to be started again", err)
+	}
+	if rerr := reload(ctx, req, stdout, stderr); rerr != nil {
+		return fmt.Errorf("%v; the previous files were put back, and reloading them failed too: %v", err, rerr)
+	}
+	why := "most likely because applying the reload failed, which its error log says"
+	if len(emerg) > 0 {
+		why = "because applying the reload failed: " + emerg[0]
+	}
+	return fmt.Errorf("%v. nginx kept its previous configuration %s; the previous files were put back and nginx was reloaded with them", err, why)
+}
+
+// reload runs the reload setting.
+func reload(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) error {
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
 	if err := runScript(ctx, req.Settings[SettingReload], stdout, stderr); err != nil {
-		return fmt.Errorf("the reload command %s; the new files stay in place, and nginx keeps serving what it last loaded", describeExit(err))
+		return fmt.Errorf("the reload command %s", describeExit(err))
 	}
-	fmt.Fprintln(stdout, liveNote)
 	return nil
 }
 
@@ -156,30 +196,67 @@ func checkDual(path string, alg x509.PublicKeyAlgorithm, serving func(string) []
 	return nil
 }
 
-// blocksServing is every configuration block of every running nginx master
-// that loads path. Empty when discovery cannot run, which leaves checkDual
-// nothing to refuse on.
-func blocksServing(path string) []block {
+// serving is what the running nginx masters do with a certificate file: the
+// configuration blocks that load it, for the checks before writing, and the
+// masters and their server blocks, for checking what is served after the
+// reload.
+type serving struct {
+	blocks  []block
+	pids    []int
+	exes    []string
+	logs    []string
+	servers []nginxServer
+}
+
+// servingOf reads every running master that loads path. Empty when discovery
+// cannot run, which leaves the checks nothing to refuse on and the reload
+// nothing to check: a Target configured ahead of the configuration that uses
+// it.
+func servingOf(path string) serving {
+	var out serving
 	found, err := scan()
 	if err != nil {
-		return nil
+		return out
 	}
-	var out []block
 	for _, in := range found {
 		if in.CertsErr != nil {
 			continue
 		}
 		blocks, _ := blocksOf(in.ConfigPath)
+		loads := false
 		for _, b := range blocks {
 			for _, c := range b.certs {
 				if c.resolved == path {
-					out = append(out, b)
+					out.blocks = append(out.blocks, b)
+					loads = true
 					break
 				}
 			}
 		}
+		if !loads {
+			continue
+		}
+		out.pids = append(out.pids, in.PID)
+		out.exes = append(out.exes, in.Exe)
+		if l := errorLogOf(in.Exe, in.ConfigPath); l != "" {
+			out.logs = append(out.logs, l)
+		}
+		if servers, err := serversOf(in.ConfigPath); err == nil {
+			out.servers = append(out.servers, servers...)
+		}
 	}
 	return out
+}
+
+// alive reports every master that loads the file still running the binary it
+// ran.
+func (s serving) alive() bool {
+	for i, pid := range s.pids {
+		if exeOf(pid) != s.exes[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // runScript runs a setting as one `/bin/sh -e -c` script, so a multi-line

@@ -33,8 +33,8 @@ func Describe() DescribeResponse {
 		Version:         Version(),
 		Description: T("nginx.description",
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
-				"and installs a new one by writing the files, testing the configuration with `nginx -t` "+
-				"and reloading only when that passes."),
+				"and installs a new one by writing the files, testing the configuration with `nginx -t`, "+
+				"reloading only when that passes, and checking that nginx then serves it."),
 		Settings: declarations(),
 	}
 }

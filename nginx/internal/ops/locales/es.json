@@ -1,5 +1,5 @@
 {
-  "nginx.description": "Instala Certificados en nginx. Encuentra los certificados que sirve cada nginx en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración con `nginx -t` y recargando solo cuando la prueba pasa.",
+  "nginx.description": "Instala Certificados en nginx. Encuentra los certificados que sirve cada nginx en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración con `nginx -t`, recargando solo cuando la prueba pasa, y comprobando que nginx lo sirve después.",
   "nginx.setting.ssl_certificate.description": "El archivo del que nginx lee el Certificado, escrito como el Certificado seguido de su cadena. Un Destino descubierto nombra el archivo que nginx realmente carga, con los enlaces simbólicos resueltos.",
   "nginx.setting.ssl_certificate_key.description": "El archivo del que nginx lee la clave privada.\n\nAmbos archivos conservan todo lo de los archivos que reemplazan salvo su contenido: propietario, modo, ACL y demás atributos extendidos, incluida la etiqueta SELinux. Un archivo nuevo es `0600`.",
   "nginx.setting.test.label": "Comando de prueba",
