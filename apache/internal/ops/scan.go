@@ -107,7 +107,12 @@ func scan() ([]*master, error) {
 	versions := map[string]string{} // exe -> version, "" when not Apache
 	var out []*master
 	for _, p := range procs {
-		if !isApache(p.exe, versions) {
+		// Who runs it comes first: the version probe below executes the binary,
+		// and a binary any user can start must never run with more than that
+		// user's rights. A process whose credentials cannot be read is skipped
+		// rather than probed as root.
+		c, ok := credOf(p.pid)
+		if !ok || !isApache(p.exe, c, versions) {
 			continue
 		}
 		// A master's parent runs some other binary; a worker's parent is the
@@ -116,7 +121,7 @@ func scan() ([]*master, error) {
 		if byPID[p.ppid].exe == p.exe {
 			continue
 		}
-		m := &master{PID: p.pid, PPID: p.ppid, Exe: p.exe, ParentExe: byPID[p.ppid].exe, Version: versions[p.exe]}
+		m := &master{PID: p.pid, PPID: p.ppid, Exe: p.exe, ParentExe: byPID[p.ppid].exe, Version: versions[p.exe], Cred: c}
 		derive(m)
 		out = append(out, m)
 	}
@@ -166,11 +171,21 @@ func procFile(pid int, name string) string {
 	return string(b)
 }
 
-// apacheName limits which binaries are asked for their version at all, so the
-// scan never executes an arbitrary program found running on the host.
+// apacheName limits which binaries are asked for their version at all. It is
+// no security boundary, since anyone can name a program `apache`: what keeps
+// the probe safe is that it runs with the credentials of whoever runs the
+// process, so it can do nothing that user could not already do.
 var apacheName = regexp.MustCompile(`(?i)(httpd|apache)`)
 
-func isApache(exe string, cache map[string]string) bool {
+// probe runs `exe -v` with c, nil being this process's own.
+var probe = func(c *syscall.Credential, exe string) string {
+	out, _ := runCmd(c, nil, exe, "-v")
+	return out
+}
+
+// isApache asks exe for its version, as c. A binary is the same file whoever
+// runs it, so the answer is cached by path.
+func isApache(exe string, c cred, cache map[string]string) bool {
 	if v, ok := cache[exe]; ok {
 		return v != ""
 	}
@@ -178,7 +193,11 @@ func isApache(exe string, cache map[string]string) bool {
 	if !apacheName.MatchString(filepath.Base(exe)) {
 		return false
 	}
-	out, _ := runCmd(nil, nil, exe, "-v")
+	var sc *syscall.Credential
+	if !c.IsRoot() {
+		sc = c.Sys()
+	}
+	out := probe(sc, exe)
 	for _, l := range strings.Split(out, "\n") {
 		if v, ok := strings.CutPrefix(l, "Server version: "); ok && strings.HasPrefix(v, "Apache/") {
 			cache[exe] = v
@@ -196,7 +215,6 @@ const valueOpts = "CcDdEefk"
 func derive(m *master) {
 	m.Argv = splitNUL(procFile(m.PID, "cmdline"))
 	m.Replay = replayOf(m.Argv)
-	m.Cred = credOf(m.PID)
 	m.Env = environOf(m.PID)
 	m.Supervisor = supervisorOf(m)
 	m.Graceful = m.Supervisor.Kind == "" || m.Supervisor.Kind == "runit"
@@ -295,8 +313,11 @@ func pidIn(path string) int {
 // file. They are applied as they are rather than through `sudo -u`, which
 // would look the groups up again and could get a different answer from the
 // one the master started with.
-func credOf(pid int) cred {
-	var c cred
+//
+// ok is false when either id is missing, as for a process gone meanwhile:
+// its zero value would read as root.
+func credOf(pid int) (c cred, ok bool) {
+	found := 0
 	for _, l := range strings.Split(procFile(pid, "status"), "\n") {
 		f := strings.Fields(l)
 		if len(f) == 0 {
@@ -305,12 +326,16 @@ func credOf(pid int) cred {
 		switch f[0] {
 		case "Uid:", "Gid:":
 			if len(f) == 5 {
-				n, _ := strconv.ParseUint(f[4], 10, 32)
+				n, err := strconv.ParseUint(f[4], 10, 32)
+				if err != nil {
+					continue
+				}
 				if f[0] == "Uid:" {
 					c.UID = uint32(n)
 				} else {
 					c.GID = uint32(n)
 				}
+				found++
 			}
 		case "Groups:":
 			for _, g := range f[1:] {
@@ -319,7 +344,7 @@ func credOf(pid int) cred {
 			}
 		}
 	}
-	return c
+	return c, found == 2
 }
 
 func environOf(pid int) []string {
