@@ -412,7 +412,7 @@ func loads(s nginxServer, path string) bool {
 func checkName(n string) string {
 	if d, ok := strings.CutPrefix(n, "*."); ok {
 		n = "easyssl-check." + d
-	} else if strings.HasPrefix(n, ".") {
+	} else {
 		n = strings.TrimPrefix(n, ".")
 	}
 	if n == "" || strings.ContainsAny(n, "*~$()[]{}\\^ ") || net.ParseIP(n) != nil || !strings.Contains(n, ".") && n != "localhost" {
