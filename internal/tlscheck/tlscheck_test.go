@@ -3,6 +3,7 @@ package tlscheck
 import (
 	"crypto/tls"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/easyssl-io/easyssl-plugins/internal/testkeys"
@@ -46,6 +47,54 @@ func TestServedPicksKeyType(t *testing.T) {
 	var out discard
 	if _, err := Verify(func() bool { return true }, []Endpoint{{IP: "127.0.0.1", Port: port, SNI: "dual.test", Alg: "ECDSA"}}, ecDER, out); err != nil {
 		t.Errorf("Verify: %v", err)
+	}
+}
+
+// A dual server accepting only TLS 1.3 cannot be asked for one key type: the
+// half it sends is checked as usual, and the other is reported as not
+// checked rather than as not served, which would roll back a Certificate the
+// server took. A wrong certificate of the expected type still fails.
+func TestServedTLS13OnlyDualServer(t *testing.T) {
+	rsaPair, rsaDER := tlsPair(t, "rsa", "dual.test")
+	ecPair, ecDER := tlsPair(t, "ec", "dual.test")
+	_, otherEC := tlsPair(t, "ec", "dual.test")
+	// Go's server sends the first certificate the client's signature
+	// algorithms allow, so with every one offered the ECDSA one goes out.
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
+		MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{ecPair, rsaPair}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() { _ = c.(*tls.Conn).Handshake(); c.Close() }()
+		}
+	}()
+	_, port, _ := net.SplitHostPort(ln.Addr().String())
+	ec := Endpoint{IP: "127.0.0.1", Port: port, SNI: "dual.test", Alg: "ECDSA"}
+	rsa := Endpoint{IP: "127.0.0.1", Port: port, SNI: "dual.test", Alg: "RSA"}
+
+	if got := Served(ec); got != Fingerprint(ecDER) {
+		t.Errorf("the half the server sends: got %s, want %s", got, Fingerprint(ecDER))
+	}
+	if r := served(rsa); !r.unchecked {
+		t.Errorf("the half it cannot be asked for: %+v, want unchecked", r)
+	}
+	alive := func() bool { return true }
+	var out discard
+	if line, err := Verify(alive, []Endpoint{ec, rsa}, ecDER, out); err != nil || !strings.Contains(line, "1 more could not be checked") {
+		t.Errorf("Verify of the ECDSA half: %q, %v", line, err)
+	}
+	if _, err := Verify(alive, []Endpoint{rsa}, rsaDER, out); err != nil {
+		t.Errorf("Verify of the RSA half, which cannot be checked, failed: %v", err)
+	}
+	if _, err := Verify(alive, []Endpoint{ec}, otherEC, out); err == nil {
+		t.Error("Verify passed although the ECDSA half serves another certificate")
 	}
 }
 
