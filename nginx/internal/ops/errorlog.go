@@ -30,9 +30,9 @@ func errorLogOf(exe, config string) string {
 		}
 	}
 	if payload, err := crossplane.Parse(config, &crossplane.ParseOptions{}); err == nil && len(payload.Config) > 0 {
-		for _, d := range flatten(payload, payload.Config[0].Parsed, 0) {
-			if d.Directive == "error_log" && len(d.Args) > 0 {
-				log = d.Args[0]
+		for _, l := range flatten(payload, payload.Config[0].Parsed, payload.Config[0].File, 0) {
+			if l.d.Directive == "error_log" && len(l.d.Args) > 0 {
+				log = l.d.Args[0]
 				break
 			}
 		}

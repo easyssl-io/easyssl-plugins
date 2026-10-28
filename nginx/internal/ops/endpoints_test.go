@@ -103,3 +103,75 @@ func TestEmergSince(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// What keeps discovery from suggesting a certificate because a place it is
+// served from could not be checked after a reload.
+func TestReachProblems(t *testing.T) {
+	root := tree(t, map[string]string{"nginx.conf": `
+http {
+  server { listen 443 ssl; server_name a.test; ssl_certificate /ROOT/a.crt; ssl_certificate_key /ROOT/a.key; }
+  server { listen 443 ssl; server_name a.test; ssl_certificate /ROOT/shadowed.crt; ssl_certificate_key /ROOT/s.key; }
+  server { listen 443 ssl; server_name ~^x$; ssl_certificate /ROOT/nameless.crt; ssl_certificate_key /ROOT/n.key; }
+  server { listen 80; ssl_certificate /ROOT/plain.crt; ssl_certificate_key /ROOT/plain.key; }
+  server { listen 9443 ssl proxy_protocol; listen 9444 ssl; server_name p.test; ssl_certificate /ROOT/p.crt; ssl_certificate_key /ROOT/p.key; }
+  server { listen 8443 quic; server_name q.test; ssl_certificate /ROOT/q.crt; ssl_certificate_key /ROOT/q.key; }
+  server { listen 7443 quic; listen 7443 ssl; server_name h3.test; ssl_certificate /ROOT/h3.crt; ssl_certificate_key /ROOT/h3.key; }
+}
+stream {
+  ssl_certificate /ROOT/unused.crt; ssl_certificate_key /ROOT/unused.key;
+  server { listen 5444; proxy_pass 127.0.0.1:1; }
+}
+`})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	servers, err := serversOf(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for cert, want := range map[string][]string{
+		"a.crt":        nil,
+		"h3.crt":       nil, // QUIC beside a TCP listen checked there
+		"shadowed.crt": {"no client reaches the server at `" + conf + ":4`", "belongs to the server at `" + conf + ":3`"},
+		"nameless.crt": {"`" + conf + ":5`", "cannot be checked"},
+		"plain.crt":    {"`" + conf + ":6` has no `listen` with `ssl`"},
+		"p.crt":        {"PROXY protocol"}, // even though 9444 could be checked
+		"q.crt":        {"`" + conf + ":8`", "cannot be checked"},
+		"unused.crt":   {"set at `here`", "nothing serves it"},
+	} {
+		probs := reachProblems(servers, root+"/"+cert, "here")
+		if len(want) == 0 {
+			if len(probs) != 0 {
+				t.Errorf("%s: %q, want none", cert, probs)
+			}
+			continue
+		}
+		if len(probs) != 1 || !hasWarning(probs, want...) {
+			t.Errorf("%s: %q, want one saying %q", cert, probs, want)
+		}
+	}
+}
+
+// Discovery warns about a certificate served only behind the PROXY protocol
+// instead of suggesting it, and keeps suggesting its neighbor.
+func TestUncheckableIsNotSuggested(t *testing.T) {
+	p, ok := issue(t, "ec", "p.example.test"), issue(t, "ec", "ok.example.test")
+	root := tree(t, map[string]string{
+		"p.crt": p.cert, "p.key": p.key, "ok.crt": ok.cert, "ok.key": ok.key,
+		"nginx.conf": `http {
+  server { listen 8443 ssl proxy_protocol; ssl_certificate /ROOT/p.crt; ssl_certificate_key /ROOT/p.key; }
+  server { listen 8444 ssl; ssl_certificate /ROOT/ok.crt; ssl_certificate_key /ROOT/ok.key; } }`,
+	})
+	conf := root + "/nginx.conf"
+	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
+		t.Fatal(err)
+	}
+	targets, warnings := analyze([]instance{load(t, 100, conf)})
+	if len(targets) != 1 || targets[0].PluginSettings[SettingCertificate] != root+"/ok.crt" {
+		t.Fatalf("targets %v, want ok.crt alone", targets)
+	}
+	if !hasWarning(warnings, "p.crt` is not suggested", "PROXY protocol") {
+		t.Fatalf("warnings %q", warnings)
+	}
+}

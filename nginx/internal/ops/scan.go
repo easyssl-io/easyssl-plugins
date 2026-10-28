@@ -51,6 +51,9 @@ func scan() ([]instance, error) {
 		in.ConfigPath = configOf(title, in.Exe)
 		decide(&in)
 		in.Certs, in.CertsErr = certificates(accepted, in.Exe, in.ConfigPath)
+		if in.CertsErr == nil {
+			in.Servers, _ = serversOf(in.ConfigPath)
+		}
 		out = append(out, in)
 	}
 	return out, nil

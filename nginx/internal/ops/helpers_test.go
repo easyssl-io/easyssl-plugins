@@ -141,6 +141,9 @@ func load(t *testing.T, pid int, config string) instance {
 	in := instance{PID: pid, Exe: "/usr/sbin/nginx", ConfigPath: config,
 		Test: "/usr/sbin/nginx -t", Reload: "systemctl reload nginx.service"}
 	in.Certs, in.CertsErr = certificates(accept, in.Exe, config)
+	if in.CertsErr == nil {
+		in.Servers, _ = serversOf(config)
+	}
 	return in
 }
 

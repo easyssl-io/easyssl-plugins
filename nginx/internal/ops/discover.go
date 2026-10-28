@@ -73,6 +73,9 @@ type instance struct {
 	// not be gated or parsed.
 	Certs    []CertRef
 	CertsErr error
+	// Servers is the configuration's server blocks (serversOf), nil when it
+	// could not be parsed.
+	Servers []nginxServer
 }
 
 // CertRef is one ssl_certificate occurrence: where it was written, what it
@@ -124,9 +127,11 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
 	targets, warnings := []DiscoveredTarget{}, []l10n.Text{}
 	reload, test := map[int]string{}, map[int]string{}
+	servers := map[int][]nginxServer{}
 	var refs []CertRef
 	for _, in := range found {
 		reload[in.PID], test[in.PID] = in.Reload, in.Test
+		servers[in.PID] = in.Servers
 		if in.CertsErr != nil {
 			warnings = append(warnings, warnInstance(in))
 			continue
@@ -142,7 +147,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			warnings = append(warnings, w)
 			continue
 		}
-		if probs := problemsOf(c); len(probs) > 0 {
+		if probs := problemsOf(c, servers[c.Refs[0].PID]); len(probs) > 0 {
 			warnings = append(warnings, notSuggested(c.Path, probs))
 			continue
 		}

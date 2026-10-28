@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -37,10 +38,11 @@ func pathProblems(path string) []l10n.Text {
 }
 
 // problemsOf is everything that keeps a certificate from being suggested: what
-// keeps its file or its key's from being replaced safely, and a key protected
-// by a passphrase (nginx's ssl_password_file), which a Deployment would
-// replace with an unprotected one.
-func problemsOf(c Certificate) []l10n.Text {
+// keeps its file or its key's from being replaced safely, a key protected by a
+// passphrase (nginx's ssl_password_file), which a Deployment would replace
+// with an unprotected one, and a place it is served from that a Deployment
+// could not check (reachProblems).
+func problemsOf(c Certificate, servers []nginxServer) []l10n.Text {
 	out := pathProblems(c.Path)
 	if c.Key != "" {
 		out = append(out, pathProblems(c.Key)...)
@@ -48,6 +50,9 @@ func problemsOf(c Certificate) []l10n.Text {
 			out = append(out, T("nginx.problem.encrypted_key",
 				"its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection", "key", c.Key))
 		}
+	}
+	if servers != nil && len(c.Refs) > 0 {
+		out = append(out, reachProblems(servers, c.Path, fmt.Sprintf("%s:%d", c.Refs[0].File, c.Refs[0].Line))...)
 	}
 	return out
 }

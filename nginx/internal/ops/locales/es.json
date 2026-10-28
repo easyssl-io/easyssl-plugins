@@ -25,5 +25,10 @@
   "nginx.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
   "nginx.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",
   "nginx.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}",
-  "nginx.problem.encrypted_key": "su clave `{key}` está protegida con una frase de contraseña, y un Despliegue no puede conservar esa protección"
+  "nginx.problem.encrypted_key": "su clave `{key}` está protegida con una frase de contraseña, y un Despliegue no puede conservar esa protección",
+  "nginx.problem.no_tls": "el servidor de `{at}` no tiene ningún `listen` con `ssl`, así que nunca sirve este certificado",
+  "nginx.problem.proxy_protocol": "el servidor de `{at}` espera el protocolo PROXY (`proxy_protocol`), así que una conexión local no puede comprobar qué sirve",
+  "nginx.problem.shadowed": "ningún cliente llega al servidor de `{at}`: cada uno de sus nombres pertenece al servidor de `{by}` en la misma dirección, y no es el predeterminado de esa dirección",
+  "nginx.problem.cannot_check": "ninguna directiva `listen` del servidor de `{at}` da una dirección y un nombre a los que este Plugin pueda conectarse, así que no puede comprobarse qué sirve tras una recarga",
+  "nginx.problem.unused_module_level": "está configurado en `{at}`, fuera de todo servidor, pero ningún servidor que lo hereda escucha con `ssl`, así que nada lo sirve"
 }
