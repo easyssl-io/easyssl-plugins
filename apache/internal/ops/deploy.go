@@ -59,7 +59,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 
 	// Step 2: the Target as discovery sees it now.
-	masters, err := scan()
+	masters, err := scanMasters()
 	if err != nil {
 		return fmt.Errorf("the running Apache instances could not be read: %v", err)
 	}
@@ -190,6 +190,9 @@ func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath strin
 	fmt.Fprintln(stdout, "Installed and reloaded. No running Apache loaded this file before, so what it serves was not checked.")
 	return nil
 }
+
+// scanMasters is scan, replaced in tests, where no Apache runs.
+var scanMasters = scan
 
 // target is the file a setting names, followed through symlinks when it
 // exists: replacing a symlink with a regular file would cut whatever else it
