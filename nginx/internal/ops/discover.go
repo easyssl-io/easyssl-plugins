@@ -76,6 +76,20 @@ type instance struct {
 	// Servers is the configuration's server blocks (serversOf), nil when it
 	// could not be parsed.
 	Servers []nginxServer
+
+	// Prefix is where the master resolves relative paths: its -p, else the
+	// compiled prefix. PrefixGiven is whether it was started with -p, and
+	// Globals what its -g holds that its commands repeat (startFrom).
+	Prefix      string
+	PrefixGiven bool
+	Globals     string
+	build       build
+	// Signal is whether Reload is the master's own `nginx -s reload`, which
+	// needs guard.
+	Signal bool
+	// Changed is the configuration's files edited since the master last
+	// loaded them (changedSince).
+	Changed []string
 }
 
 // CertRef is one ssl_certificate occurrence: where it was written, what it
@@ -127,11 +141,11 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
 	targets, warnings := []DiscoveredTarget{}, []l10n.Text{}
 	reload, test := map[int]string{}, map[int]string{}
-	servers := map[int][]nginxServer{}
+	masters := map[int]*instance{}
 	var refs []CertRef
-	for _, in := range found {
+	for i, in := range found {
 		reload[in.PID], test[in.PID] = in.Reload, in.Test
-		servers[in.PID] = in.Servers
+		masters[in.PID] = &found[i]
 		if in.CertsErr != nil {
 			warnings = append(warnings, warnInstance(in))
 			continue
@@ -147,7 +161,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			warnings = append(warnings, w)
 			continue
 		}
-		if probs := problemsOf(c, servers[c.Refs[0].PID]); len(probs) > 0 {
+		if probs := problemsOf(c, masters[c.Refs[0].PID]); len(probs) > 0 {
 			warnings = append(warnings, notSuggested(c.Path, probs))
 			continue
 		}

@@ -40,9 +40,10 @@ func pathProblems(path string) []l10n.Text {
 // problemsOf is everything that keeps a certificate from being suggested: what
 // keeps its file or its key's from being replaced safely, a key protected by a
 // passphrase (nginx's ssl_password_file), which a Deployment would replace
-// with an unprotected one, and a place it is served from that a Deployment
-// could not check (reachProblems).
-func problemsOf(c Certificate, servers []nginxServer) []l10n.Text {
+// with an unprotected one, a place it is served from that a Deployment could
+// not check (reachProblems), a configuration edited since nginx loaded it, and
+// a reload signal that would not reach the master.
+func problemsOf(c Certificate, in *instance) []l10n.Text {
 	out := pathProblems(c.Path)
 	if c.Key != "" {
 		out = append(out, pathProblems(c.Key)...)
@@ -51,10 +52,29 @@ func problemsOf(c Certificate, servers []nginxServer) []l10n.Text {
 				"its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection", "key", c.Key))
 		}
 	}
-	if servers != nil && len(c.Refs) > 0 {
-		out = append(out, reachProblems(servers, c.Path, fmt.Sprintf("%s:%d", c.Refs[0].File, c.Refs[0].Line))...)
+	if in == nil {
+		return out
+	}
+	if in.Servers != nil && len(c.Refs) > 0 {
+		out = append(out, reachProblems(in.Servers, c.Path, fmt.Sprintf("%s:%d", c.Refs[0].File, c.Refs[0].Line))...)
+	}
+	if len(in.Changed) > 0 {
+		out = append(out, changedProblem(*in))
+	}
+	if in.Signal && in.guard() != nil {
+		out = append(out, T("nginx.problem.pid_file",
+			"`{pidfile}`, where its reload command `nginx -s reload` reads the pid to signal, does not name `pid {pid}`, so the reload would not reach it",
+			"pidfile", in.pidFile(), "pid", in.PID))
 	}
 	return out
+}
+
+// changedProblem names the files of a master's configuration edited since it
+// loaded them, which a reload would also apply.
+func changedProblem(in instance) l10n.Text {
+	return T("nginx.problem.config_changed",
+		"`{files}` changed since nginx (`pid {pid}`) last loaded its configuration, so a reload would also apply those edits",
+		"files", strings.Join(in.Changed, "`, `"), "pid", in.PID)
 }
 
 // notSuggested is one warning naming a certificate and every problem that

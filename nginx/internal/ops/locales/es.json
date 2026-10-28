@@ -30,5 +30,7 @@
   "nginx.problem.proxy_protocol": "el servidor de `{at}` espera el protocolo PROXY (`proxy_protocol`), así que una conexión local no puede comprobar qué sirve",
   "nginx.problem.shadowed": "ningún cliente llega al servidor de `{at}`: cada uno de sus nombres pertenece al servidor de `{by}` en la misma dirección, y no es el predeterminado de esa dirección",
   "nginx.problem.cannot_check": "ninguna directiva `listen` del servidor de `{at}` da una dirección y un nombre a los que este Plugin pueda conectarse, así que no puede comprobarse qué sirve tras una recarga",
-  "nginx.problem.unused_module_level": "está configurado en `{at}`, fuera de todo servidor, pero ningún servidor que lo hereda escucha con `ssl`, así que nada lo sirve"
+  "nginx.problem.unused_module_level": "está configurado en `{at}`, fuera de todo servidor, pero ningún servidor que lo hereda escucha con `ssl`, así que nada lo sirve",
+  "nginx.problem.config_changed": "`{files}` cambió desde que nginx (`pid {pid}`) cargó su configuración por última vez, así que una recarga también aplicaría esos cambios",
+  "nginx.problem.pid_file": "`{pidfile}`, donde su comando de recarga `nginx -s reload` lee el pid al que enviar la señal, no nombra `pid {pid}`, así que la recarga no llegaría a él"
 }

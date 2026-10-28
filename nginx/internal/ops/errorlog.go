@@ -3,8 +3,6 @@ package ops
 import (
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
@@ -16,20 +14,11 @@ import (
 
 // errorLogOf is the file a master logs errors to: the first main-level
 // `error_log` naming a file, else the path the binary was compiled with. A
-// relative path is relative to the prefix, not to the configuration's
-// directory. "" when it logs somewhere else (stderr, syslog, memory).
-func errorLogOf(exe, config string) string {
-	v, _ := exec.Command(exe, "-V").CombinedOutput()
-	prefix, log := "/usr/local/nginx", "logs/error.log"
-	for _, tok := range strings.Fields(string(v)) {
-		if p, ok := strings.CutPrefix(tok, "--prefix="); ok {
-			prefix = p
-		}
-		if p, ok := strings.CutPrefix(tok, "--error-log-path="); ok {
-			log = p
-		}
-	}
-	if payload, err := crossplane.Parse(config, &crossplane.ParseOptions{}); err == nil && len(payload.Config) > 0 {
+// relative path is relative to the master's prefix, not to the
+// configuration's directory. "" when it logs somewhere else (stderr, syslog, memory).
+func errorLogOf(in instance) string {
+	log := in.build.errorLog
+	if payload, err := crossplane.Parse(in.ConfigPath, &crossplane.ParseOptions{}); err == nil && len(payload.Config) > 0 {
 		for _, l := range flatten(payload, payload.Config[0].Parsed, payload.Config[0].File, 0) {
 			if l.d.Directive == "error_log" && len(l.d.Args) > 0 {
 				log = l.d.Args[0]
@@ -40,10 +29,7 @@ func errorLogOf(exe, config string) string {
 	if log == "stderr" || strings.Contains(log, ":") {
 		return ""
 	}
-	if !filepath.IsAbs(log) {
-		log = filepath.Join(prefix, log)
-	}
-	return log
+	return under(in.Prefix, log)
 }
 
 // logMarks is each error log's size now.

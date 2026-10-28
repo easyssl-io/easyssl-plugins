@@ -74,6 +74,20 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 		}
 	}
 	live := servingOf(certPath)
+	var guards []func() error
+	for _, in := range live.masters {
+		if len(in.Changed) > 0 {
+			return fmt.Errorf("nothing was written: %s. Reload nginx once those edits are ready, then deploy again", changedProblem(in).In(l10n.English))
+		}
+		// The guard is this Plugin's for the reload command it derived, which
+		// repeats the flags that decide which pid file is read.
+		if in.Signal && req.Settings[SettingReload] == in.Reload {
+			if err := in.guard(); err != nil {
+				return fmt.Errorf("nothing was written: %v", err)
+			}
+			guards = append(guards, in.guard)
+		}
+	}
 	serving := live.blocks
 	if err := checkPairing(certPath, keyPath, serving); err != nil {
 		return err
@@ -95,7 +109,11 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 		return fmt.Errorf("the test command %s, so nothing was reloaded and the previous files were put back", describeExit(err))
 	}
 	marks := logMarks(live.logs)
-	if err := reload(ctx, req, stdout, stderr); err != nil {
+	if err := reload(ctx, req, guards, stdout, stderr); err != nil {
+		if errors.Is(err, errGuard) {
+			written.Restore(stdout, stderr)
+			return fmt.Errorf("%v; the previous files were put back", err)
+		}
 		return fmt.Errorf("%v; the new files stay in place, and nginx keeps serving what it last loaded", err)
 	}
 	if len(live.pids) == 0 || len(eps) == 0 {
@@ -115,7 +133,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if errors.Is(err, tlscheck.ErrGone) {
 		return fmt.Errorf("%v after the reload; the previous files were put back, and nginx has to be started again", err)
 	}
-	if rerr := reload(ctx, req, stdout, stderr); rerr != nil {
+	if rerr := reload(ctx, req, guards, stdout, stderr); rerr != nil {
 		return fmt.Errorf("%v; the previous files were put back, and reloading them failed too: %v", err, rerr)
 	}
 	why := "most likely because applying the reload failed, which its error log says"
@@ -125,8 +143,13 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	return fmt.Errorf("%v. nginx kept its previous configuration %s; the previous files were put back and nginx was reloaded with them", err, why)
 }
 
-// reload runs the reload setting.
-func reload(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) error {
+// reload runs the reload setting, right after the guards pass.
+func reload(ctx context.Context, req DeployRequest, guards []func() error, stdout, stderr io.Writer) error {
+	for _, g := range guards {
+		if err := g(); err != nil {
+			return fmt.Errorf("the reload was not run: %w", err)
+		}
+	}
 	fmt.Fprintf(stdout, "$ %s\n", req.Settings[SettingReload])
 	if err := runScript(ctx, req.Settings[SettingReload], stdout, stderr); err != nil {
 		return fmt.Errorf("the reload command %s", describeExit(err))
@@ -206,6 +229,7 @@ type serving struct {
 	exes    []string
 	logs    []string
 	servers []nginxServer
+	masters []instance
 }
 
 // servingOf reads every running master that loads path. Empty when discovery
@@ -238,7 +262,8 @@ func servingOf(path string) serving {
 		}
 		out.pids = append(out.pids, in.PID)
 		out.exes = append(out.exes, in.Exe)
-		if l := errorLogOf(in.Exe, in.ConfigPath); l != "" {
+		out.masters = append(out.masters, in)
+		if l := errorLogOf(in); l != "" {
 			out.logs = append(out.logs, l)
 		}
 		if servers, err := serversOf(in.ConfigPath); err == nil {

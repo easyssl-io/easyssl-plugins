@@ -48,11 +48,12 @@ func scan() ([]instance, error) {
 			continue // exited between the listing and the read
 		}
 		in := instance{PID: pid, Exe: exe}
-		in.ConfigPath = configOf(title, in.Exe)
+		startFrom(&in, title)
 		decide(&in)
-		in.Certs, in.CertsErr = certificates(accepted, in.Exe, in.ConfigPath)
+		in.Certs, in.CertsErr = certificates(func(string, string) error { return accepted(&in) }, in.Exe, in.ConfigPath)
 		if in.CertsErr == nil {
 			in.Servers, _ = serversOf(in.ConfigPath)
+			in.Changed = changedSince(in)
 		}
 		out = append(out, in)
 	}
@@ -76,10 +77,12 @@ func scan() ([]instance, error) {
 // smaller filesystem, which is how a reload can fail on a host where `nginx -t`
 // just succeeded.
 //
-// The instance's own binary and its own -c are used, since a second nginx on
-// the host may be a different build with different compiled-in paths.
-func accepted(exe, config string) error {
-	out, err := exec.Command(exe, "-t", "-c", config).CombinedOutput()
+// The instance's own binary and its own -p, -c and -g are used, since a second
+// nginx on the host may be a different build with different compiled-in paths,
+// and a prefix changes what every relative path means.
+func accepted(in *instance) error {
+	w := in.words()
+	out, err := exec.Command(w[0], append(w[1:], "-t")...).CombinedOutput()
 	if err == nil {
 		return nil
 	}
@@ -124,46 +127,6 @@ func exeOf(pid int) string {
 	return strings.TrimSuffix(p, " (deleted)") // a binary upgraded under the master
 }
 
-// configOf finds the configuration file: an explicit -c on the command line
-// wins, otherwise the path the binary was compiled with.
-func configOf(title, exe string) string {
-	f := strings.Fields(title)
-	for i, s := range f {
-		if s == "-c" && i+1 < len(f) {
-			return f[i+1]
-		}
-	}
-	return compiledConfig(exe)
-}
-
-// compiledConfig is the configuration a binary reads with no -c.
-func compiledConfig(exe string) string {
-	out, _ := exec.Command(exe, "-V").CombinedOutput() // on stderr
-	return compiledConfigFrom(string(out))
-}
-
-// compiledConfigFrom reads it out of `nginx -V`. A distribution's build names
-// --conf-path; a build from source often names only --prefix, or nothing, and
-// nginx then reads conf/nginx.conf under the prefix, /usr/local/nginx by
-// default. A relative --conf-path is relative to the prefix too. Found on a
-// BusyBox host running nginx compiled with --prefix alone, whose instance
-// discovery otherwise reported as having no configuration.
-func compiledConfigFrom(v string) string {
-	prefix, conf := "/usr/local/nginx", "conf/nginx.conf"
-	for _, tok := range strings.Fields(v) {
-		if p, ok := strings.CutPrefix(tok, "--prefix="); ok {
-			prefix = p
-		}
-		if c, ok := strings.CutPrefix(tok, "--conf-path="); ok {
-			conf = c
-		}
-	}
-	if filepath.IsAbs(conf) {
-		return conf
-	}
-	return filepath.Join(prefix, conf)
-}
-
 // A systemd unit name: letters, digits, and the punctuation systemd allows,
 // ending in .service. No capture group, because the pattern is the whole thing
 // being extracted; the hyphen is last in the class so it is a literal rather
@@ -188,31 +151,15 @@ func decide(in *instance) {
 		return
 	}
 
-	in.Reload = signalCommand(in)
+	// The fallback. It repeats the master's -p, -c and -g (words), because
+	// `nginx -s reload` finds the pid to signal through them.
+	in.Reload, in.Signal = in.command("-s", "reload"), true
 }
 
-// signalCommand is the fallback. -c is repeated only when the master was
-// started with a config that is not the compiled-in default, because
-// `nginx -s reload` resolves the pid file through the configuration and would
-// otherwise read a different one.
-func signalCommand(in *instance) string {
-	return withConfig(in) + " -s reload"
-}
-
-// testCommand is the instance's own `-t`: same binary, same -c rule as the
-// signal, since a test against another configuration says nothing about this
-// master.
+// testCommand is the instance's own `-t`, with the same flags as the signal,
+// since a test against another configuration says nothing about this master.
 func testCommand(in *instance) string {
-	return withConfig(in) + " -t"
-}
-
-// withConfig is the binary plus -c when the configuration is not that binary's
-// compiled default, in which case naming it would be harmless but wrong.
-func withConfig(in *instance) string {
-	if in.ConfigPath != "" && in.ConfigPath != compiledConfig(in.Exe) {
-		return shellQuote(in.Exe) + " -c " + shellQuote(in.ConfigPath)
-	}
-	return shellQuote(in.Exe)
+	return in.command("-t")
 }
 
 // shellQuote makes one word of s for the `/bin/sh -e -c` the test and reload
