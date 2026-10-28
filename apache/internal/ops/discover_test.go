@@ -25,7 +25,8 @@ import (
 var update = flag.Bool("update", false, "rewrite the golden files under testdata")
 
 // The cases under testdata/cases are what httpd 2.4 itself reported for the
-// configurations the prototype ran on a VM, one Apache master each: its
+// configurations testdata/setup.sh starts, one Apache master each, as
+// testdata/capture.sh recorded them: its
 // DUMP_CONFIG with mod_info loaded (config), its DUMP_VHOSTS (vhosts), and
 // what each certificate or key file it names held (files), with /srv/cases
 // replaced by @ROOT@. The test recreates those files under a temporary root,
