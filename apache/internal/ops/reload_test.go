@@ -5,19 +5,18 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/easyssl-io/easyssl-plugins/internal/testroot"
 )
 
 // The graceful command reads the master's whole configuration before it
 // signals, so it runs as the user the master runs as; a supervisor's reload
 // stays root's. This test process stands in for the master.
 func TestAGracefulReloadRunsAsTheMastersUser(t *testing.T) {
-	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
-		t.Skip("needs Linux and root, to run a command as another user")
-	}
+	testroot.Require(t)
 	self := os.Getpid()
 	exe, err := os.Readlink("/proc/self/exe")
 	if err != nil {

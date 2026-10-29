@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+
+	"github.com/easyssl-io/easyssl-plugins/internal/testroot"
 )
 
 // acl encodes a POSIX ACL as the kernel stores it in system.posix_acl_*,
@@ -37,7 +39,7 @@ func setOrSkip(t *testing.T, path, name string, v []byte) {
 	t.Helper()
 	if err := syscall.Setxattr(path, name, v, 0); err != nil {
 		if errors.Is(err, syscall.ENOTSUP) || errors.Is(err, syscall.EPERM) {
-			t.Skipf("the filesystem of %s refuses %s: %v", path, name, err)
+			testroot.Unavailable(t, "the filesystem of %s refuses %s: %v", path, name, err)
 		}
 		t.Fatal(err)
 	}
