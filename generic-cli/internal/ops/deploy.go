@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
@@ -41,7 +42,7 @@ const (
 // command's stdout and stderr pass through as this Plugin's own, so the Agent
 // records one transcript and can set stderr apart on screen.
 func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) error {
-	fmt.Fprintf(stdout, "%s %s · deploy\n", Name, Version())
+	fmt.Fprintf(stdout, "%s %s · deploy\n", Name, buildversion.Version)
 
 	command, ok := req.Settings[SettingInstall]
 	if !ok || strings.TrimSpace(command) == "" {

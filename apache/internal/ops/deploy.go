@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
@@ -30,7 +31,7 @@ import (
 // There is no response document: the exit status is the answer, and what
 // happened is on stdout and stderr, which the Agent records in order.
 func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) error {
-	fmt.Fprintf(stdout, "%s %s · deploy\n", Name, Version())
+	fmt.Fprintf(stdout, "%s %s · deploy\n", Name, buildversion.Version)
 	for _, k := range []string{SettingCertificate, SettingKey, SettingTest, SettingReload} {
 		if strings.TrimSpace(req.Settings[k]) == "" {
 			return fmt.Errorf("the %q setting has no value; the Server should not have queued this Deployment", k)

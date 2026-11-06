@@ -5,9 +5,6 @@
 package ops
 
 import (
-	"runtime/debug"
-	"strings"
-
 	"github.com/easyssl-io/easyssl-contract/plugincontract"
 )
 
@@ -43,25 +40,6 @@ type (
 	ExtraDatum            = plugincontract.ExtraDatum
 	DeployRequest         = plugincontract.DeployRequest
 )
-
-// fallbackVersion is what a build with no module version of its own reports,
-// which is every build made from a checkout. The distribution catalog serving
-// this checkout uses the same value, and both move together.
-const fallbackVersion = "0.0.1"
-
-// Version reports the module version stamped into the binary, else
-// fallbackVersion.
-func Version() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return fallbackVersion
-	}
-	v := strings.TrimPrefix(info.Main.Version, "v")
-	if v == "" || v == "(devel)" {
-		return fallbackVersion
-	}
-	return v
-}
 
 // declarations is the only place this Plugin's settings are defined: the
 // Agent reports them verbatim and the Server resolves every value against
