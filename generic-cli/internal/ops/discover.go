@@ -85,7 +85,7 @@ func Describe() DescribeResponse {
 				"command directly.\n\n"+
 				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is "+
 				"what most servers read.\n"+
-				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n"+
+				"`EASYSSL_CERTIFICATE_PATH`: the Certificate alone, without the chain.\n"+
 				"`EASYSSL_CHAIN_PATH`: the issuer chain alone, without the Certificate.\n"+
 				"`EASYSSL_KEY_PATH`: the private key. It is the only one written 0600, and it exists "+
 				"only while the command runs."),
