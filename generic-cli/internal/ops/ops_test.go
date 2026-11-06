@@ -45,7 +45,7 @@ func TestDescribeDeclaresTheInstallCommand(t *testing.T) {
 	if s.Default == "" {
 		t.Fatal("reload has an empty default, which would make every fresh Target undeployable")
 	}
-	for _, want := range []string{"EASYSSL_CERT_PATH", "EASYSSL_CHAIN_PATH", "EASYSSL_FULLCHAIN_PATH", "EASYSSL_KEY_PATH"} {
+	for _, want := range []string{"EASYSSL_CERTIFICATE_PATH", "EASYSSL_CHAIN_PATH", "EASYSSL_FULLCHAIN_PATH", "EASYSSL_KEY_PATH"} {
 		if !strings.Contains(s.Default, want) {
 			t.Fatalf("the default template never mentions %s, so it does not show what a script has to work with", want)
 		}
@@ -104,11 +104,11 @@ func TestInstallWritesTheMaterialThenRemovesIt(t *testing.T) {
 	record := filepath.Join(dir, "seen.txt")
 	script := `
 {
-  echo "cert=$EASYSSL_CERT_PATH"
+  echo "cert=$EASYSSL_CERTIFICATE_PATH"
   echo "chain=$EASYSSL_CHAIN_PATH"
   echo "fullchain=$EASYSSL_FULLCHAIN_PATH"
   echo "key=$EASYSSL_KEY_PATH"
-  echo "certbody=$(cat "$EASYSSL_CERT_PATH")"
+  echo "certbody=$(cat "$EASYSSL_CERTIFICATE_PATH")"
   echo "fullchainbody=$(cat "$EASYSSL_FULLCHAIN_PATH")"
   echo "keybody=$(cat "$EASYSSL_KEY_PATH")"
   echo "keymode=$(ls -l "$EASYSSL_KEY_PATH" | cut -c1-10)"

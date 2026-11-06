@@ -86,7 +86,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-e", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"EASYSSL_CERT_PATH="+paths[certificateFile],
+		"EASYSSL_CERTIFICATE_PATH="+paths[certificateFile],
 		"EASYSSL_CHAIN_PATH="+paths[chainFile],
 		"EASYSSL_FULLCHAIN_PATH="+paths[fullchainFile],
 		"EASYSSL_KEY_PATH="+paths[keyFile],
