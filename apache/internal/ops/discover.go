@@ -612,7 +612,7 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 		}
 		var lines []string
 		for _, l := range f.locs {
-			lines = append(lines, fmt.Sprintf("`%s` (pid %d)", l.where, l.m.PID))
+			lines = append(lines, fmt.Sprintf("%s (pid %d)", l.where, l.m.PID))
 		}
 		t.ExtraData = []ExtraDatum{{Label: T("apache.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)

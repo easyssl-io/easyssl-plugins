@@ -2,72 +2,72 @@ SUGGEST @ROOT@/A/a.crt
   key: @ROOT@/A/a.key
   test: /opt/httpd/bin/httpd -f @ROOT@/A/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/A/httpd.conf -k graceful
-  `@ROOT@/A/httpd.conf:24` (pid 1000)
+  @ROOT@/A/httpd.conf:24 (pid 1000)
 SUGGEST @ROOT@/AA/aa.crt
   key: @ROOT@/AA/aa.key
   test: /opt/httpd/bin/httpd -f @ROOT@/AA/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/AA/httpd.conf -k graceful
-  `@ROOT@/AA/httpd.conf:22` (pid 1001)
+  @ROOT@/AA/httpd.conf:22 (pid 1001)
 SUGGEST @ROOT@/AB/abv.crt
   key: @ROOT@/AB/abv.key
   test: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -k graceful
-  `@ROOT@/AB/httpd.conf:26` (pid 1002)
+  @ROOT@/AB/httpd.conf:26 (pid 1002)
 SUGGEST @ROOT@/G/g1.crt
   key: @ROOT@/G/g1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -k graceful
-  `@ROOT@/G/httpd.conf:24` (pid 1008)
+  @ROOT@/G/httpd.conf:24 (pid 1008)
 SUGGEST @ROOT@/G/g2.crt
   key: @ROOT@/G/g2.key
   test: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -k graceful
-  `@ROOT@/G/httpd.conf:30` (pid 1008)
+  @ROOT@/G/httpd.conf:30 (pid 1008)
 SUGGEST @ROOT@/H/hx.crt
   key: @ROOT@/H/hx.key
   test: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -k graceful
-  `@ROOT@/H/httpd.conf:24` (pid 1009)
+  @ROOT@/H/httpd.conf:24 (pid 1009)
 SUGGEST @ROOT@/S/s.crt
   key: @ROOT@/S/s.key
   test: /opt/httpd/bin/httpd -f @ROOT@/S/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/S/httpd.conf -k graceful
-  `@ROOT@/S/httpd.conf:21` (pid 1020)
+  @ROOT@/S/httpd.conf:21 (pid 1020)
 SUGGEST @ROOT@/U/uec.crt
   key: @ROOT@/U/uec.key
   test: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -k graceful
-  `@ROOT@/U/httpd.conf:26` (pid 1022)
+  @ROOT@/U/httpd.conf:26 (pid 1022)
 SUGGEST @ROOT@/U/ursa.crt
   key: @ROOT@/U/ursa.key
   test: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -k graceful
-  `@ROOT@/U/httpd.conf:24` (pid 1022)
+  @ROOT@/U/httpd.conf:24 (pid 1022)
 SUGGEST @ROOT@/V/v1.crt
   key: @ROOT@/V/v1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V1/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V1/httpd.conf -k graceful
-  `@ROOT@/V1/httpd.conf:24` (pid 1023)
+  @ROOT@/V1/httpd.conf:24 (pid 1023)
 SUGGEST @ROOT@/V/v2.crt
   key: @ROOT@/V/v2.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V2/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V2/httpd.conf -k graceful
-  `@ROOT@/V2/httpd.conf:24` (pid 1024)
+  @ROOT@/V2/httpd.conf:24 (pid 1024)
 SUGGEST @ROOT@/V/v3.crt
   key: @ROOT@/V/v3.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V3/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V3/httpd.conf -k graceful
-  `@ROOT@/V3/httpd.conf:24` (pid 1025)
+  @ROOT@/V3/httpd.conf:24 (pid 1025)
 SUGGEST @ROOT@/W/w.crt
   key: @ROOT@/W/w.key
   test: /opt/httpd/bin/httpd -f @ROOT@/W/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/W/httpd.conf -k graceful
-  `@ROOT@/W/httpd.conf:25` (pid 1026)
+  @ROOT@/W/httpd.conf:25 (pid 1026)
 SUGGEST @ROOT@/X/x1.crt
   key: @ROOT@/X/x1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/X1/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/X1/httpd.conf -k graceful
-  `@ROOT@/X1/httpd.conf:25` (pid 1027)
+  @ROOT@/X1/httpd.conf:25 (pid 1027)
 WARN Name collision on `*:9442`: `@ROOT@/B/httpd.conf:27` never gets its name `dup.test`, which `@ROOT@/B/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/B/b1.crt`, `@ROOT@/B/b2.crt`.
 WARN Name collision on `*:9443`: `@ROOT@/C/httpd.conf:28` never gets its name `c2.test`, which `@ROOT@/C/httpd.conf:21` takes; `@ROOT@/C/httpd.conf:34` never gets its name `c1.test`, which `@ROOT@/C/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/C/c1.crt`, `@ROOT@/C/c2.crt`, `@ROOT@/C/c3.crt`.
 WARN Name collision on `*:9444`: `@ROOT@/D/httpd.conf:27` never gets its name `127.0.0.1`, which is not a host name, so clients reach it without SNI and get `@ROOT@/D/httpd.conf:21`. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/D/d1.crt`, `@ROOT@/D/d2.crt`.
