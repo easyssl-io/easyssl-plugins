@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // File names written into the run's working directory. Fullchain is the
@@ -129,14 +131,28 @@ func writeMaterial(dir string, req DeployRequest) (map[string]string, error) {
 		fullchainFile:   filepath.Join(dir, fullchainFile),
 		keyFile:         filepath.Join(dir, keyFile),
 	}
+	// Only certificates are written, re-encoded, whatever text came with them:
+	// the install command runs as root and may copy these anywhere.
+	certificate, err := pemfile.Certificates(req.CertificatePem)
+	if err != nil {
+		return paths, err
+	}
+	chain, err := pemfile.Certificates(req.ChainPem)
+	if err != nil {
+		return paths, err
+	}
+	fullchain, err := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	if err != nil {
+		return paths, err
+	}
 	files := []struct {
 		name    string
 		content string
 		mode    os.FileMode
 	}{
-		{certificateFile, req.CertificatePem, materialMode},
-		{chainFile, req.ChainPem, materialMode},
-		{fullchainFile, joinPEM(req.CertificatePem, req.ChainPem), materialMode},
+		{certificateFile, certificate, materialMode},
+		{chainFile, chain, materialMode},
+		{fullchainFile, fullchain, materialMode},
 		{keyFile, req.PrivateKeyPem, keyMode},
 	}
 	for _, f := range files {
@@ -148,17 +164,6 @@ func writeMaterial(dir string, req DeployRequest) (map[string]string, error) {
 		}
 	}
 	return paths, nil
-}
-
-// joinPEM concatenates the certificate and its chain with exactly one newline
-// between them, whatever trailing newlines each carried.
-func joinPEM(certificate, chain string) string {
-	certificate = strings.TrimRight(certificate, "\n")
-	chain = strings.TrimLeft(strings.TrimRight(chain, "\n"), "\n")
-	if chain == "" {
-		return certificate + "\n"
-	}
-	return certificate + "\n" + chain + "\n"
 }
 
 func removeAll(paths map[string]string) {

@@ -110,7 +110,10 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 	eps := endpointsFor(live.servers, certPath, leaf.PublicKeyAlgorithm.String())
 
-	fullchain := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	fullchain, err := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	if err != nil {
+		return err
+	}
 	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err

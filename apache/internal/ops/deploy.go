@@ -115,8 +115,11 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	}
 
 	// Steps 6 to 8.
-	fullchain := []byte(pemfile.JoinPEM(req.CertificatePem, req.ChainPem))
-	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, fullchain, []byte(req.PrivateKeyPem), stdout, stderr)
+	fullchain, err := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	if err != nil {
+		return err
+	}
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -170,7 +173,11 @@ func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath strin
 			return errors.New(probs[0](catalog.In(l10n.English)))
 		}
 	}
-	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(pemfile.JoinPEM(req.CertificatePem, req.ChainPem)), []byte(req.PrivateKeyPem), stdout, stderr)
+	fullchain, err := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)
+	if err != nil {
+		return err
+	}
+	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}
