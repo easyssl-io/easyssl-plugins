@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
@@ -21,7 +22,7 @@ func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: plugincontractVersion,
 		Name:            Name,
-		Version:         Version(),
+		Version:         buildversion.Version,
 		Description: T("apache.description",
 			"Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running "+
 				"Apache serves, and installs a new one by writing the files, testing the configuration, reloading only "+

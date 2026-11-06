@@ -16,6 +16,7 @@ import (
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/wire"
+	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
@@ -31,7 +32,7 @@ func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: plugincontractVersion,
 		Name:            Name,
-		Version:         Version(),
+		Version:         buildversion.Version,
 		Description: T("nginx.description",
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
 				"and installs a new one by writing the files, testing the configuration with `nginx -t`, "+

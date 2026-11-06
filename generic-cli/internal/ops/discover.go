@@ -2,10 +2,9 @@ package ops
 
 import (
 	_ "embed"
-	"runtime/debug"
-	"strings"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 )
 
 // installTemplate is the default value of the one setting this Plugin declares.
@@ -15,30 +14,6 @@ import (
 //go:embed install.sh.tmpl
 var installTemplate string
 
-// fallbackVersion is what this build reports when it carries no module version
-// of its own, which is every build made straight from a checkout. The catalog
-// and the digest identify an artifact; this is the human-readable label beside
-// them. A distribution catalog publishing this checkout must use the same
-// value, and both move together.
-const fallbackVersion = "0.0.1"
-
-// Version reports this build's version: the module version stamped into the
-// binary when there is one, else fallbackVersion. Read through build info
-// rather than an -ldflags variable so a build nobody stamped is still honest
-// about being one.
-func Version() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return fallbackVersion
-	}
-	v := strings.TrimPrefix(info.Main.Version, "v")
-	// "(devel)" is what the toolchain writes for a build from a working tree.
-	if v == "" || v == "(devel)" {
-		return fallbackVersion
-	}
-	return v
-}
-
 // Describe answers with what this Plugin is and declares. The declaration below
 // is the only place generic-cli's settings are defined: the Agent reports it
 // verbatim, the Marketplace shows it, and the Server resolves every value
@@ -47,7 +22,7 @@ func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: ContractVersion,
 		Name:            Name,
-		Version:         Version(),
+		Version:         buildversion.Version,
 		Description: T("generic_cli.description", "Installs a Certificate on a host by running a command you write. "+
 			"It knows nothing about any particular service: whatever can be done from a "+
 			"shell on that host, such as copying files into place, reloading a daemon, or "+
