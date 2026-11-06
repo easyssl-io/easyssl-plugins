@@ -119,7 +119,7 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if err != nil {
 		return err
 	}
-	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
+	written, err := hostfile.WritePair(WriteFileFlag, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath strin
 	if err != nil {
 		return err
 	}
-	written, err := hostfile.WritePair(OpWriteFile, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
+	written, err := hostfile.WritePair(WriteFileFlag, certPath, keyPath, []byte(fullchain), []byte(req.PrivateKeyPem), stdout, stderr)
 	if err != nil {
 		return err
 	}

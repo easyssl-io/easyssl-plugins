@@ -53,7 +53,7 @@ func Describe() DescribeResponse {
 			"shell on that host, such as copying files into place, reloading a daemon, or "+
 			"calling another tool, this Plugin can do. A service that has a Plugin of its "+
 			"own is better served by that one."),
-		Settings: []SettingDeclaration{{
+		Declarations: []SettingDeclaration{{
 			Key: SettingInstall,
 			// "Install command", not "Reload command", because reloading is the last
 			// thing this script does and not the whole of it: copying the material from
@@ -79,6 +79,10 @@ func Describe() DescribeResponse {
 				"there is invisible to every other process on the host, and one another process "+
 				"put in `/tmp` is invisible here. Hand a file to another daemon somewhere "+
 				"else.\n\n"+
+				"It runs inside the Agent service too, so a process it leaves running ends when "+
+				"the Agent restarts or is updated. Start or reload a long-running service through "+
+				"the host's service manager, such as `systemctl reload nginx`, never from this "+
+				"command directly.\n\n"+
 				"`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is "+
 				"what most servers read.\n"+
 				"`EASYSSL_CERT_PATH`: the Certificate alone, without the chain.\n"+

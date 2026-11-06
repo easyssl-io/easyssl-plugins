@@ -26,7 +26,7 @@ func Describe() DescribeResponse {
 			"Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running "+
 				"Apache serves, and installs a new one by writing the files, testing the configuration, reloading only "+
 				"when that passes, and checking that the new Certificate is then served."),
-		Settings: declarations(),
+		Declarations: declarations(),
 	}
 }
 
@@ -591,7 +591,7 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 		first := f.locs[0]
 		ci := sv.infos[f.path]
 		t := DiscoveredTarget{
-			PluginSettings: map[string]string{
+			Settings: map[string]string{
 				SettingCertificate: f.path,
 				SettingKey:         first.keyPath,
 				SettingTest:        first.m.testCommand(),
@@ -614,7 +614,7 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 		for _, l := range f.locs {
 			lines = append(lines, fmt.Sprintf("`%s` (pid %d)", l.where, l.m.PID))
 		}
-		t.PluginExtraData = []ExtraDatum{{Label: T("apache.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
+		t.ExtraData = []ExtraDatum{{Label: T("apache.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
 	}
 	return targets, warnings

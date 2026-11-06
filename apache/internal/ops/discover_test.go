@@ -89,10 +89,10 @@ func TestDiscoverCases(t *testing.T) {
 
 	var b strings.Builder
 	for _, tg := range targets {
-		s := tg.PluginSettings
+		s := tg.Settings
 		b.WriteString("SUGGEST " + s[SettingCertificate] + "\n")
 		b.WriteString("  key: " + s[SettingKey] + "\n  test: " + s[SettingTest] + "\n  reload: " + s[SettingReload] + "\n")
-		b.WriteString("  " + tg.PluginExtraData[0].Value + "\n")
+		b.WriteString("  " + tg.ExtraData[0].Value + "\n")
 	}
 	for _, w := range warnings {
 		b.WriteString("WARN " + w.In(l10n.English) + "\n")
