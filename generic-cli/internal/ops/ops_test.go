@@ -30,10 +30,10 @@ func TestDescribeDeclaresTheInstallCommand(t *testing.T) {
 	if d.Version == "" {
 		t.Fatal("describe reports no version")
 	}
-	if len(d.Settings) != 1 {
-		t.Fatalf("describe declares %d settings, want exactly the install command", len(d.Settings))
+	if len(d.Declarations) != 1 {
+		t.Fatalf("describe declares %d settings, want exactly the install command", len(d.Declarations))
 	}
-	s := d.Settings[0]
+	s := d.Declarations[0]
 	if s.Key != ops.SettingInstall || s.Type != ops.SettingTypeCommand || !s.Required {
 		t.Fatalf("reload declaration = %+v, want a required command keyed `reload`", s)
 	}
@@ -75,7 +75,7 @@ func TestDiscoverReportsNothing(t *testing.T) {
 	if d.DiscoveredTargets == nil || len(d.DiscoveredTargets) != 0 || d.Warnings == nil || len(d.Warnings) != 0 {
 		t.Fatalf("discover = %+v, want two empty lists", d)
 	}
-	if err := plugincontract.ValidateDiscover(ops.Describe().Settings, d); err != nil {
+	if err := plugincontract.ValidateDiscover(ops.Describe().Declarations, d); err != nil {
 		t.Fatalf("the Agent would refuse this answer: %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestCatalog(t *testing.T) { l10ncheck.Check(t, ".", "locales") }
 func TestDefaultTemplateSucceedsAndInstallsNothing(t *testing.T) {
 	requirePOSIXShell(t)
 	dir := t.TempDir()
-	res := deploy(t, request(dir, ops.Describe().Settings[0].Default))
+	res := deploy(t, request(dir, ops.Describe().Declarations[0].Default))
 	if !res.OK {
 		t.Fatalf("the declared default failed: %s", res.Combined)
 	}

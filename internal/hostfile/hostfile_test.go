@@ -158,7 +158,7 @@ func TestWritePairAndRestore(t *testing.T) {
 	newK := testkeys.Key(t, "ec")
 	cert := testkeys.Cert(t, newK, "new.test")
 	key := testkeys.PEM(t, newK)
-	w, err := WritePair("write-file", cp, kp, cert, key, discard{}, discard{})
+	w, err := WritePair("--write-file", cp, kp, cert, key, discard{}, discard{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestWritePairAndRestore(t *testing.T) {
 
 	// A pair that does not belong together is caught after the write and
 	// undone.
-	if _, err := WritePair("write-file", cp, kp, cert, testkeys.PEM(t, oldKey), discard{}, discard{}); err == nil {
+	if _, err := WritePair("--write-file", cp, kp, cert, testkeys.PEM(t, oldKey), discard{}, discard{}); err == nil {
 		t.Error("a mismatched pair was accepted")
 	}
 	if b, _ := os.ReadFile(cp); string(b) == string(cert) {
@@ -191,7 +191,7 @@ func TestWritePairRefusesReplacingAnEncryptedKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	k := testkeys.Key(t, "ec")
-	if _, err := WritePair("write-file", cp, kp, testkeys.Cert(t, k, "a.test"), testkeys.PEM(t, k), discard{}, discard{}); err == nil {
+	if _, err := WritePair("--write-file", cp, kp, testkeys.Cert(t, k, "a.test"), testkeys.PEM(t, k), discard{}, discard{}); err == nil {
 		t.Fatal("an encrypted key was replaced")
 	}
 	if b, _ := os.ReadFile(kp); string(b) != enc {

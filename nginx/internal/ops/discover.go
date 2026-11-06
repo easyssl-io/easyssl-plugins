@@ -36,7 +36,7 @@ func Describe() DescribeResponse {
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
 				"and installs a new one by writing the files, testing the configuration with `nginx -t`, "+
 				"reloading only when that passes, and checking that nginx then serves it."),
-		Settings: declarations(),
+		Declarations: declarations(),
 	}
 }
 
@@ -171,7 +171,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			continue
 		}
 		t := DiscoveredTarget{
-			PluginSettings: map[string]string{
+			Settings: map[string]string{
 				SettingCertificate: c.Path,
 				SettingKey:         c.Key,
 				SettingTest:        test[c.Refs[0].PID],
@@ -201,7 +201,7 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 		for _, r := range c.Refs {
 			lines = append(lines, fmt.Sprintf("`pid %d:%s:%d`", r.PID, r.File, r.Line))
 		}
-		t.PluginExtraData = []ExtraDatum{{Label: T("nginx.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
+		t.ExtraData = []ExtraDatum{{Label: T("nginx.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
 	}
 	for _, c := range conflicts {

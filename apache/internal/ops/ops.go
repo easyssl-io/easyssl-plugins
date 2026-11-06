@@ -27,9 +27,10 @@ const (
 	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
-	// OpWriteFile is internal: deploy runs this executable with it under a
-	// file owner's credentials. The Agent never sends it.
-	OpWriteFile = "write-file"
+	// WriteFileFlag is internal: deploy runs this executable with it under a
+	// file owner's credentials. A flag rather than an operation name, so the
+	// contract's operations stay its own.
+	WriteFileFlag = "--write-file"
 
 	// The four settings, keyed by Apache's own directive names so a reader with
 	// the configuration open needs no translation. Constants because describe

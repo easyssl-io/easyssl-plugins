@@ -55,7 +55,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// No response document: the exit status is the answer, and everything the run
 		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
-	case ops.OpWriteFile:
+	case ops.WriteFileFlag:
 		// Not an Agent operation: deploy runs this executable again with it, under
 		// the credentials of a file's owner, to replace a file in a directory that
 		// owner controls (hostfile.WriteAs says why).
@@ -65,8 +65,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return hostfile.Write(req)
 	default:
-		// An operation this build does not implement. The Agent treats the
-		// non-zero exit here as the operation being unsupported.
+		// Not an operation of the contract version this build reports, which
+		// the Agent never sends; someone ran it by hand.
 		return fmt.Errorf("unknown operation %q", args[0])
 	}
 }

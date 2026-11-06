@@ -122,7 +122,7 @@ func replaceRoot(t *testing.T, root, p string) {
 func byCert(targets []DiscoveredTarget) map[string]DiscoveredTarget {
 	out := map[string]DiscoveredTarget{}
 	for _, s := range targets {
-		out[s.PluginSettings[SettingCertificate]] = s
+		out[s.Settings[SettingCertificate]] = s
 	}
 	return out
 }
@@ -144,7 +144,7 @@ func keyTypeOf(t DiscoveredTarget) string {
 }
 
 func extra(s DiscoveredTarget, label string) string {
-	for _, d := range s.PluginExtraData {
+	for _, d := range s.ExtraData {
 		if d.Label["en"] == label {
 			return d.Value
 		}
@@ -202,7 +202,7 @@ func TestDiscoverCases(t *testing.T) {
 	})
 	t.Run("relative path resolves against the configuration directory", func(t *testing.T) {
 		s, ok := got[root+"/etc/nginx/certs/relative.crt"]
-		if !ok || s.PluginSettings[SettingKey] != root+"/etc/nginx/certs/relative.key" {
+		if !ok || s.Settings[SettingKey] != root+"/etc/nginx/certs/relative.key" {
 			t.Fatalf("relative: %+v", s)
 		}
 	})
@@ -221,7 +221,7 @@ func TestDiscoverCases(t *testing.T) {
 			"cross-rsa.crt": "cross-rsa.key", "cross-ec.crt": "cross-ec.key",
 			"rsa1.crt": "rsa1.key", "rsa2.crt": "rsa2.key",
 		} {
-			if k := got[ssl+cert].PluginSettings[SettingKey]; k != ssl+key {
+			if k := got[ssl+cert].Settings[SettingKey]; k != ssl+key {
 				t.Errorf("%s paired with %s, want %s", cert, k, key)
 			}
 		}
@@ -255,15 +255,15 @@ func TestDiscoverCases(t *testing.T) {
 		}
 	})
 	t.Run("the locations label is translated, its value is not", func(t *testing.T) {
-		d := got[ssl+"confd.crt"].PluginExtraData[0]
+		d := got[ssl+"confd.crt"].ExtraData[0]
 		if d.Label["en"] != "Locations" || d.Label["es"] != "Ubicaciones" {
 			t.Fatalf("label %q", d.Label)
 		}
 	})
 	t.Run("settings carry the instance's commands", func(t *testing.T) {
 		s := got[ssl+"confd.crt"]
-		if s.PluginSettings[SettingTest] != "/usr/sbin/nginx -t" || s.PluginSettings[SettingReload] != "systemctl reload nginx.service" {
-			t.Fatalf("commands %v", s.PluginSettings)
+		if s.Settings[SettingTest] != "/usr/sbin/nginx -t" || s.Settings[SettingReload] != "systemctl reload nginx.service" {
+			t.Fatalf("commands %v", s.Settings)
 		}
 	})
 	t.Run("unchanged host, identical answer", func(t *testing.T) {
@@ -339,7 +339,7 @@ func TestDescribeIsTheIdentityAndTheDeclarations(t *testing.T) {
 	if d.Description["en"] == "" || d.Description["es"] == "" || d.Description["es"] == d.Description["en"] {
 		t.Fatalf("the description needs English and Spanish of its own: %q", d.Description)
 	}
-	if !slices.EqualFunc(d.Settings, declarations(), func(a, b SettingDeclaration) bool { return a.Key == b.Key }) {
+	if !slices.EqualFunc(d.Declarations, declarations(), func(a, b SettingDeclaration) bool { return a.Key == b.Key }) {
 		t.Fatal("describe does not declare the settings deploy reads")
 	}
 	if err := plugincontract.ValidateDescribe(d); err != nil {
@@ -400,7 +400,7 @@ func equalTargets(a, b []DiscoveredTarget) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].PluginSettings[SettingCertificate] != b[i].PluginSettings[SettingCertificate] ||
+		if a[i].Settings[SettingCertificate] != b[i].Settings[SettingCertificate] ||
 			extra(a[i], "Locations") != extra(b[i], "Locations") ||
 			!slices.Equal(domainsOf(a[i]), domainsOf(b[i])) || keyTypeOf(a[i]) != keyTypeOf(b[i]) {
 			return false

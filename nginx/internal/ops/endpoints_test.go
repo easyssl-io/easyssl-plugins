@@ -168,7 +168,7 @@ func TestUncheckableIsNotSuggested(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 1 || targets[0].PluginSettings[SettingCertificate] != root+"/ok.crt" {
+	if len(targets) != 1 || targets[0].Settings[SettingCertificate] != root+"/ok.crt" {
 		t.Fatalf("targets %v, want ok.crt alone", targets)
 	}
 	if !hasWarning(warnings, "p.crt` is not suggested", "PROXY protocol") {

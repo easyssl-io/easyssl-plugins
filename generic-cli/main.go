@@ -55,8 +55,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
 	default:
-		// An operation this build does not implement. The Agent treats the
-		// non-zero exit here as the operation being unsupported.
+		// Not an operation of the contract version this build reports, which
+		// the Agent never sends; someone ran it by hand.
 		return fmt.Errorf("unknown operation %q", args[0])
 	}
 }
