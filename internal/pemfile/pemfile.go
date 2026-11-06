@@ -58,13 +58,45 @@ func ParseLeaf(certificatePEM string) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
-// JoinPEM is the certificate followed by its chain, each ending in one newline.
-func JoinPEM(cert, chain string) string {
-	out := strings.TrimRight(cert, "\n") + "\n"
-	if c := strings.TrimSpace(chain); c != "" {
-		out += c + "\n"
+// Certificates is every certificate in s re-encoded as plain PEM, in order,
+// and nothing else. What a Plugin writes as root comes from the Server, which
+// the host cannot trust, and a certificate file is read as other things too (a
+// file under /etc/profile.d/ is run by every login shell). So a block that is
+// not a certificate is refused, and text outside the blocks and PEM headers
+// are dropped by re-encoding. An empty s is an empty result; a non-empty one
+// with no certificate is an error.
+func Certificates(s string) (string, error) {
+	if strings.TrimSpace(s) == "" {
+		return "", nil
 	}
-	return out
+	var out strings.Builder
+	for _, blk := range Blocks([]byte(s)) {
+		if blk.Type != "CERTIFICATE" {
+			return "", fmt.Errorf("the Deployment's certificates include a %q block, which is not a certificate", blk.Type)
+		}
+		out.Write(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: blk.Bytes}))
+	}
+	if out.Len() == 0 {
+		return "", ErrNoCertificate
+	}
+	return out.String(), nil
+}
+
+// JoinPEM is the certificate followed by its chain, both through
+// Certificates.
+func JoinPEM(cert, chain string) (string, error) {
+	c, err := Certificates(cert)
+	if err != nil {
+		return "", err
+	}
+	if c == "" {
+		return "", ErrNoCertificate
+	}
+	ch, err := Certificates(chain)
+	if err != nil {
+		return "", err
+	}
+	return c + ch, nil
 }
 
 var oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}

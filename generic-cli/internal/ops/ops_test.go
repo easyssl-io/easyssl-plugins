@@ -17,8 +17,8 @@ import (
 // contract rests on rather than every branch.
 
 const (
-	testCert  = "-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----"
-	testChain = "-----BEGIN CERTIFICATE-----\nCHAIN\n-----END CERTIFICATE-----"
+	testCert  = "-----BEGIN CERTIFICATE-----\nCERTCERT\n-----END CERTIFICATE-----"
+	testChain = "-----BEGIN CERTIFICATE-----\nCHAINCHA\n-----END CERTIFICATE-----"
 	testKey   = "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
 )
 

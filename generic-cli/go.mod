@@ -2,7 +2,10 @@ module github.com/easyssl-io/easyssl-plugins/generic-cli
 
 go 1.26.9
 
-require github.com/easyssl-io/easyssl-contract v0.0.1
+require (
+	github.com/easyssl-io/easyssl-contract v0.0.1
+	github.com/easyssl-io/easyssl-plugins/internal v0.0.1
+)
 
 // Umbrella-dev resolution for the unpublished contract module, the same
 // arrangement agent/go.mod uses. The plugin declares what it needs here
@@ -12,3 +15,7 @@ require github.com/easyssl-io/easyssl-contract v0.0.1
 // easyssl-contract is published, which is also what makes a bare clone of
 // this repository build.
 replace github.com/easyssl-io/easyssl-contract => ../../contract
+
+// The code this Plugin shares with the others in this repository, which is a
+// module of its own beside them and is never published apart from them.
+replace github.com/easyssl-io/easyssl-plugins/internal => ../internal
