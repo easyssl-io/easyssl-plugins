@@ -24,8 +24,8 @@ const (
 
 func TestDescribeDeclaresTheInstallCommand(t *testing.T) {
 	d := ops.Describe()
-	if d.ContractVersion != ops.ContractVersion || d.Name != "generic-cli" {
-		t.Fatalf("describe identity = %q %q", d.ContractVersion, d.Name)
+	if d.ContractVersion != ops.ContractVersion {
+		t.Fatalf("describe contract version = %q", d.ContractVersion)
 	}
 	if d.Version == "" {
 		t.Fatal("describe reports no version")
@@ -262,8 +262,7 @@ func TestInstallWithoutACommandFails(t *testing.T) {
 	dir := t.TempDir()
 	for _, settings := range []map[string]string{nil, {}, {ops.SettingInstall: "   "}} {
 		res := deploy(t, ops.DeployRequest{
-			ContractVersion: ops.ContractVersion,
-			CertificatePem:  testCert, ChainPem: testChain, PrivateKeyPem: testKey,
+			CertificatePem: testCert, ChainPem: testChain, PrivateKeyPem: testKey,
 			WorkDir: dir, Settings: settings,
 		})
 		if res.OK {
@@ -282,8 +281,7 @@ func TestInstallWithoutAWorkDirCleansUpAfterItself(t *testing.T) {
 	dir := t.TempDir()
 	record := filepath.Join(dir, "where.txt")
 	res := deploy(t, ops.DeployRequest{
-		ContractVersion: ops.ContractVersion,
-		CertificatePem:  testCert, ChainPem: testChain, PrivateKeyPem: testKey,
+		CertificatePem: testCert, ChainPem: testChain, PrivateKeyPem: testKey,
 		Settings: map[string]string{ops.SettingInstall: `dirname "$EASYSSL_KEY_PATH" > ` + record},
 	})
 	if !res.OK {
@@ -300,12 +298,11 @@ func TestInstallWithoutAWorkDirCleansUpAfterItself(t *testing.T) {
 
 func request(workDir, command string) ops.DeployRequest {
 	return ops.DeployRequest{
-		ContractVersion: ops.ContractVersion,
-		CertificatePem:  testCert,
-		ChainPem:        testChain,
-		PrivateKeyPem:   testKey,
-		WorkDir:         workDir,
-		Settings:        map[string]string{ops.SettingInstall: command},
+		CertificatePem: testCert,
+		ChainPem:       testChain,
+		PrivateKeyPem:  testKey,
+		WorkDir:        workDir,
+		Settings:       map[string]string{ops.SettingInstall: command},
 	}
 }
 

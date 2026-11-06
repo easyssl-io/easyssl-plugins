@@ -21,7 +21,6 @@ import (
 func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: plugincontractVersion,
-		Name:            Name,
 		Version:         buildversion.Version,
 		Description: T("apache.description",
 			"Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running "+
