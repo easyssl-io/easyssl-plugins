@@ -31,7 +31,6 @@ import (
 func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: plugincontractVersion,
-		Name:            Name,
 		Version:         buildversion.Version,
 		Description: T("nginx.description",
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+

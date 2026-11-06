@@ -21,7 +21,6 @@ var installTemplate string
 func Describe() DescribeResponse {
 	return DescribeResponse{
 		ContractVersion: ContractVersion,
-		Name:            Name,
 		Version:         buildversion.Version,
 		Description: T("generic_cli.description", "Installs a Certificate on a host by running a command you write. "+
 			"It knows nothing about any particular service: whatever can be done from a "+

@@ -333,8 +333,8 @@ func TestRejectedConfigurationIsAWarning(t *testing.T) {
 
 func TestDescribeIsTheIdentityAndTheDeclarations(t *testing.T) {
 	d := Describe()
-	if d.ContractVersion != plugincontractVersion || d.Name != Name || d.Version == "" {
-		t.Fatalf("describe identity = %q %q %q", d.ContractVersion, d.Name, d.Version)
+	if d.ContractVersion != plugincontractVersion || d.Version == "" {
+		t.Fatalf("describe identity = %q %q", d.ContractVersion, d.Version)
 	}
 	if d.Description["en"] == "" || d.Description["es"] == "" || d.Description["es"] == d.Description["en"] {
 		t.Fatalf("the description needs English and Spanish of its own: %q", d.Description)
