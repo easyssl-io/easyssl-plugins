@@ -10,7 +10,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"flag"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -18,11 +17,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/easyssl-io/easyssl-contract/contracttest"
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
 )
-
-var update = flag.Bool("update", false, "rewrite the golden files under testdata")
 
 // The cases under testdata/cases are what httpd 2.4 itself reported for the
 // configurations testdata/setup.sh starts, one Apache master each, as
@@ -98,30 +96,13 @@ func TestDiscoverCases(t *testing.T) {
 		b.WriteString("WARN " + w.In(l10n.English) + "\n")
 	}
 	got := strings.ReplaceAll(b.String(), root, "@ROOT@")
-	golden(t, "testdata/discover.golden", got)
+	contracttest.GoldenFile(t, "testdata/discover.golden", []byte(got))
 
 	// Every warning reads in Spanish too, with nothing left untranslated.
 	for _, w := range warnings {
 		if es := w.In("es"); es == w.In(l10n.English) {
 			t.Errorf("a warning has no Spanish: %s", es)
 		}
-	}
-}
-
-func golden(t *testing.T, path, got string) {
-	t.Helper()
-	if *update {
-		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("%v (run with -update to create it)", err)
-	}
-	if got != string(want) {
-		t.Errorf("%s differs (run with -update after checking the change):\n--- got\n%s", path, got)
 	}
 }
 

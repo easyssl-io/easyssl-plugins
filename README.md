@@ -1,8 +1,11 @@
 # easyssl-plugins
 
 First-party plugins for easySSL. Each plugin is a standalone executable that an
-easySSL Agent fetches on demand, verifies against a published content digest
-before running, and then drives over stdio.
+easySSL Agent fetches on demand from the Server's catalog, installs only when its
+SHA-256 matches the digest the catalog publishes for it, and then drives over
+stdio. The digest is checked at install; afterwards the Agent reports the
+digest of the file on disk with every inventory, so a replaced executable shows
+on the Server rather than being refused on the host.
 
 Nothing here is linked into the Agent binary. An Agent ships with no plugins at
 all and gains one only when somebody installs it, which keeps the base install
@@ -17,7 +20,7 @@ touching the Agent.
 | `generic-cli` | The general-purpose fallback. You write one command that puts the certificate and key where they belong and reloads the service, and it runs exactly that: no configuration parsing, nothing tied to any particular server software. The command runs under `sh -e`, so a line that fails fails the deployment; a failure on the left of `&&` or `||`, or inside a pipeline, does not count, so a command that must fail goes on its own line. |
 | `nginx` | Finds the certificates every running nginx master serves (parsing its configuration with every `include`, pairing dual RSA and ECDSA certificates by algorithm) and suggests each as a Target, unless its file or its key's cannot be replaced safely, a place nginx serves it from cannot be checked over TLS (no `ssl` listen, `proxy_protocol`, a server whose names an earlier one claims), its configuration was edited since nginx loaded it, or the pid file `nginx -s reload` would read does not name the master, which is a discovery warning instead and a refusal at deploy. The test and reload commands repeat the master's own `-p`, `-c` and `-g`. Deploys by writing the full chain and the key with everything but their content kept (owner, mode, ACLs and other extended attributes), as the user their directory belongs to, running the instance's `nginx -t`, reloading, and checking over TLS that every place it can work out from `listen` and `server_name` presents the new Certificate. A failed test or a Certificate not served puts the previous files back, the latter with nginx's `[emerg]` reason quoted and a second reload. |
 
-Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Per-module release tags (`generic-cli/v1.2.0`) also match how the catalog versions each artifact separately.
+Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Each plugin is released and versioned on its own: its tag, `generic-cli/v1.2.0`, sets the version its `describe` answer reports, and the catalog offers each plugin at the version it reports.
 
 ## Languages
 
