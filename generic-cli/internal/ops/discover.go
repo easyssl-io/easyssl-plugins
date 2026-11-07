@@ -26,7 +26,8 @@ func Describe() DescribeResponse {
 			"It knows nothing about any particular service: whatever can be done from a "+
 			"shell on that host, such as copying files into place, reloading a daemon, or "+
 			"calling another tool, this Plugin can do. A service that has a Plugin of its "+
-			"own is better served by that one."),
+			"own is better served by that one. It runs as root on the host, so whoever can edit a Target's "+
+			"command can run anything there as root."),
 		Declarations: []SettingDeclaration{{
 			Key: SettingInstall,
 			// "Install command", not "Reload command", because reloading is the last

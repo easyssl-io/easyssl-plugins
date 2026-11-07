@@ -2,8 +2,8 @@
   "contractVersion": "0.0.1",
   "version": "0.0.1",
   "description": {
-    "en": "Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running Apache serves, and installs a new one by writing the files, testing the configuration, reloading only when that passes, and checking that the new Certificate is then served.",
-    "es": "Instala Certificados en Apache HTTP Server (httpd, apache2). Encuentra los certificados que sirve cada Apache en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración, recargando solo cuando la prueba pasa y comprobando que después se sirve el nuevo Certificado."
+    "en": "Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running Apache serves, and installs a new one by writing the files, testing the configuration, reloading only when that passes, and checking that the new Certificate is then served. It runs as root on the host: whoever can edit a Target's settings can have it run any command and write any file there.",
+    "es": "Instala Certificados en Apache HTTP Server (httpd, apache2). Encuentra los certificados que sirve cada Apache en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración, recargando solo cuando la prueba pasa y comprobando que después se sirve el nuevo Certificado. Se ejecuta como root en el host: quien pueda editar la configuración de un Destino puede hacer que ejecute cualquier comando y escriba cualquier archivo allí."
   },
   "declarations": [
     {
