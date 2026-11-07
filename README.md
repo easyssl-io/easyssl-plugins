@@ -57,8 +57,10 @@ plugins here alone.
 
 ## Why this is open source
 
-Everything that runs on an easySSL Agent is open source, because a plugin reads
-and writes private key material and restarts services on someone else's host.
+Everything that runs on an easySSL Agent has its source published, because a
+plugin reads and writes private key material and restarts services on someone else's host.
 Anyone running an Agent should be able to read every line that touches their
 keys, and to rebuild an artifact and check it against the digest the catalog
-publishes. That rule covers this repository.
+publishes. That rule covers this repository, which is also open source under
+Apache-2.0 (`LICENSE`), so a Plugin of your own can start from any of these and
+ship in a product of your own, owing nothing back.
