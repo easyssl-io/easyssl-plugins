@@ -1,6 +1,6 @@
 module github.com/easyssl-io/easyssl-plugins/generic-cli
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/easyssl-io/easyssl-contract v0.0.1
@@ -9,11 +9,11 @@ require (
 
 // Umbrella-dev resolution for the unpublished contract module, the same
 // arrangement agent/go.mod uses. The plugin declares what it needs here
-// rather than letting a workspace resolve it silently, which is why plugins
-// stay out of go.work: `GOWORK=off go build` still means something because
-// this line is part of the module. Dropped in favor of a version pin once
-// easyssl-contract is published, which is also what makes a bare clone of
-// this repository build.
+// rather than letting a workspace resolve it silently: a workspace that lists
+// this module resolves an import it never declared, so the builds and tests
+// that count run with GOWORK=off, where only this line reaches the contract.
+// Dropped in favor of a version pin once easyssl-contract is published, which
+// is also what makes a bare clone of this repository build.
 replace github.com/easyssl-io/easyssl-contract => ../../contract
 
 // The code this Plugin shares with the others in this repository, which is a

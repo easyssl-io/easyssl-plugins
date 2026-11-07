@@ -1,3 +1,3 @@
 module github.com/easyssl-io/easyssl-plugins/internal
 
-go 1.26.9
+go 1.26.10

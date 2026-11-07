@@ -1,6 +1,6 @@
 module github.com/easyssl-io/easyssl-plugins/apache
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/easyssl-io/easyssl-contract v0.0.1
