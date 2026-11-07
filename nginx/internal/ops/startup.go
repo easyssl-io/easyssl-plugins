@@ -25,9 +25,22 @@ type build struct {
 	prefix, conf, errorLog, pid string
 }
 
-func buildOf(exe string) build {
-	out, _ := exec.Command(exe, "-V").CombinedOutput() // on stderr
-	return buildFrom(string(out))
+// buildOf runs exe -V as c, the master's user. Anyone can start a process
+// titled "nginx: master process" from a binary of their own, which run as root
+// would be that user's code running as root.
+func buildOf(exe string, c *syscall.Credential) build {
+	return buildFrom(versionOf(c, exe))
+}
+
+// versionOf is what exe -V prints, run as c, or as this process when c is nil.
+// A variable so a test can see who it runs as.
+var versionOf = func(c *syscall.Credential, exe string) string {
+	cmd := exec.Command(exe, "-V")
+	if c != nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: c}
+	}
+	out, _ := cmd.CombinedOutput() // on stderr
+	return string(out)
 }
 
 // buildFrom reads `nginx -V`. A distribution's build names every path; a build
@@ -125,7 +138,7 @@ func replayed(globals string) string {
 // what of its command line the commands repeat.
 func startFrom(in *instance, title string) {
 	s := startupOf(title)
-	in.build = buildOf(in.Exe)
+	in.build = buildOf(in.Exe, in.Cred)
 	in.Prefix = in.build.prefix
 	if s.prefix != "" {
 		in.Prefix, in.PrefixGiven = s.prefix, true
@@ -213,14 +226,17 @@ func (in *instance) guard() error {
 }
 
 // credOf is the credentials a master runs with, from /proc/<pid>/status: its
-// effective uid and gid and its supplementary groups. nil for root.
+// effective uid and gid and its supplementary groups. nil for root. ok is
+// false when they cannot be read, so a process that exits mid-scan is not
+// taken for root's.
 //
-// The test and this Plugin's own signal run with them, because `nginx -t`
-// loads every `load_module` its configuration names and runs it: as root,
-// the configuration of a master an ordinary user started, with that user's
-// -p, -c and -g, would be that user's code running as root.
-func credOf(pid int) *syscall.Credential {
-	var c syscall.Credential
+// The -V probe, the test and this Plugin's own signal run with them, because
+// `nginx -t` loads every `load_module` its configuration names and runs it,
+// and the binary itself may be one the user who started the master wrote: as
+// root, a master an ordinary user started would be that user's code running
+// as root.
+func credOf(pid int) (c *syscall.Credential, ok bool) {
+	var cr syscall.Credential
 	found := 0
 	for _, l := range strings.Split(procFile(pid, "status"), "\n") {
 		k, v, ok := strings.Cut(l, ":")
@@ -231,32 +247,35 @@ func credOf(pid int) *syscall.Credential {
 		switch k {
 		case "Uid", "Gid":
 			if len(f) < 2 {
-				return nil
+				return nil, false
 			}
 			n, err := strconv.ParseUint(f[1], 10, 32) // effective
 			if err != nil {
-				return nil
+				return nil, false
 			}
 			if k == "Uid" {
-				c.Uid = uint32(n)
+				cr.Uid = uint32(n)
 			} else {
-				c.Gid = uint32(n)
+				cr.Gid = uint32(n)
 			}
 			found++
 		case "Groups":
-			c.Groups = []uint32{}
+			cr.Groups = []uint32{}
 			for _, g := range f {
 				if n, err := strconv.ParseUint(g, 10, 32); err == nil {
-					c.Groups = append(c.Groups, uint32(n))
+					cr.Groups = append(cr.Groups, uint32(n))
 				}
 			}
 		}
 	}
-	if found < 2 || c.Uid == 0 {
-		return nil
+	if found < 2 {
+		return nil, false
 	}
-	if c.Groups == nil {
-		c.Groups = []uint32{}
+	if cr.Uid == 0 {
+		return nil, true
 	}
-	return &c
+	if cr.Groups == nil {
+		cr.Groups = []uint32{}
+	}
+	return &cr, true
 }

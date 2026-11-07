@@ -44,11 +44,18 @@ func scan() ([]instance, error) {
 		if !strings.HasPrefix(title, "nginx: master process") {
 			continue
 		}
+		// Who runs it comes first: startFrom executes the binary, which must
+		// never run with more than its owner's rights. A process whose
+		// credentials cannot be read is skipped rather than probed as root.
+		cred, ok := credOf(pid)
+		if !ok {
+			continue
+		}
 		exe := exeOf(pid)
 		if exe == "" {
 			continue // exited between the listing and the read
 		}
-		in := instance{PID: pid, Exe: exe, Cred: credOf(pid)}
+		in := instance{PID: pid, Exe: exe, Cred: cred}
 		startFrom(&in, title)
 		decide(&in)
 		in.Certs, in.CertsErr = certificates(func(string, string) error { return accepted(&in) }, in.Exe, in.ConfigPath)

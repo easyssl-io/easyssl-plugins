@@ -31,7 +31,9 @@ new files in place, and nginx keeps serving what it last loaded.
   `rc-service`), run as root. Each file is written as the user its directory
   belongs to, and a path where another user could swap a directory is refused.
 - **Runs** the master's own binary with `-V` and with `-t` (repeating its `-p`,
-  `-c` and `-g`); `systemctl show` for the unit's reload command; and the
+  `-c` and `-g`), both as the master's user, since anyone can start a process
+  with nginx's title; a process whose user cannot be read is skipped.
+  Also `systemctl show` for the unit's reload command, and the
   `test` and `reload` settings under `/bin/sh -e`. The configuration itself is
   parsed in the Plugin, not by `nginx -T`.
 - **Connects** over TLS, after a reload, to every `listen ... ssl` address (`*`
