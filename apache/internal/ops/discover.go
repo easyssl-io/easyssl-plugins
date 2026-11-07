@@ -25,7 +25,8 @@ func Describe() DescribeResponse {
 		Description: T("apache.description",
 			"Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running "+
 				"Apache serves, and installs a new one by writing the files, testing the configuration, reloading only "+
-				"when that passes, and checking that the new Certificate is then served."),
+				"when that passes, and checking that the new Certificate is then served. It runs as root on the host: whoever can "+
+				"edit a Target's settings can have it run any command and write any file there."),
 		Declarations: declarations(),
 	}
 }

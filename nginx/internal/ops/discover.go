@@ -35,7 +35,8 @@ func Describe() DescribeResponse {
 		Description: T("nginx.description",
 			"Installs Certificates into nginx. It finds the certificates every running nginx serves, "+
 				"and installs a new one by writing the files, testing the configuration with `nginx -t`, "+
-				"reloading only when that passes, and checking that nginx then serves it."),
+				"reloading only when that passes, and checking that nginx then serves it. It runs as root on the host: "+
+				"whoever can edit a Target's settings can have it run any command and write any file there."),
 		Declarations: declarations(),
 	}
 }
