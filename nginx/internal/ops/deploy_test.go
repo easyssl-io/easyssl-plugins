@@ -309,7 +309,7 @@ func TestEncryptedKeyIsNotSuggested(t *testing.T) {
 
 // A value nginx does not read from one file is a warning, never a suggestion,
 // and a certificate file one block pairs with such a key is not suggested
-// anywhere (#222). A Target naming one by hand is refused before writing.
+// anywhere. A Target naming one by hand is refused before writing.
 func TestNotAFileIsNotSuggested(t *testing.T) {
 	ok, eng := issue(t, "ec", "ok.example.test"), issue(t, "ec", "eng.example.test")
 	root := tree(t, map[string]string{
