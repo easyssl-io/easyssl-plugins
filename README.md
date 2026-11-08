@@ -22,7 +22,7 @@ touching the Agent.
 
 Each Plugin's README says what it does on the host: what it runs, as which user, and where it connects.
 
-Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Each plugin is released and versioned on its own: its tag, `generic-cli/v1.2.0`, sets the version its `describe` answer reports, and the catalog offers each plugin at the version it reports.
+Each plugin is its own **Go module** in its own directory, built to its own executable. That is deliberate rather than tidy: a plugin that drives a browser needs dependencies a minimal one must not inherit, and a shared `go.mod` would put them in every plugin's dependency graph. Each plugin is released and versioned on its own: its tag, `generic-cli/v1.2.0`, sets the version its `describe` answer reports, the catalog offers each plugin at the version it reports, and its `CHANGELOG.md` records what each release changes.
 
 ## Languages
 
