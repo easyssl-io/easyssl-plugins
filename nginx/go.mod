@@ -3,7 +3,7 @@ module github.com/easyssl-io/easyssl-plugins/nginx
 go 1.26.10
 
 require (
-	github.com/easyssl-io/easyssl-contract v0.0.1
+	github.com/easyssl-io/easyssl-contract v0.1.0
 	github.com/easyssl-io/easyssl-plugins/internal v0.0.1
 	github.com/nginxinc/nginx-go-crossplane v0.4.89
 )
@@ -18,11 +18,6 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 )
-
-// Umbrella-dev resolution for the unpublished contract module, the same
-// arrangement generic-cli uses; dropped for a version pin once
-// easyssl-contract is published.
-replace github.com/easyssl-io/easyssl-contract => ../../contract
 
 // The code this Plugin shares with the others in this repository, which
 // is a module of its own beside them and is never published apart from them.
