@@ -2,9 +2,9 @@
 // answer and its deploy output carry.
 package buildversion
 
-// Version is set from the Plugin's release tag, `<plugin>/vX.Y.Z`, with
-// `-ldflags -X` when a release is built. Every other build, one made straight
-// from a checkout included, reports the version every Plugin keeps until its
-// first release. A variable rather than a constant, since `-X` can set only a
-// variable.
-var Version = "0.0.1"
+// Version is set with `-ldflags -X` by the build scripts: the Plugin's release
+// tag's version on a tagged commit, a `+dev` version naming the commit
+// otherwise. A build made without them, `go build` or a test, reports 0.0.0,
+// which is never a release. A variable rather than a constant, since `-X` can
+// set only a variable.
+var Version = "0.0.0"

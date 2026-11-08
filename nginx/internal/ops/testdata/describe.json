@@ -1,6 +1,6 @@
 {
   "contractVersion": "0.1.0",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": {
     "en": "Installs Certificates into nginx. It finds the certificates every running nginx serves, and installs a new one by writing the files, testing the configuration with `nginx -t`, reloading only when that passes, and checking that nginx then serves it. It runs as root on the host: whoever can edit a Target's settings can have it run any command and write any file there.",
     "es": "Instala Certificados en nginx. Encuentra los certificados que sirve cada nginx en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración con `nginx -t`, recargando solo cuando la prueba pasa, y comprobando que nginx lo sirve después. Se ejecuta como root en el host: quien pueda editar la configuración de un Destino puede hacer que ejecute cualquier comando y escriba cualquier archivo allí."
