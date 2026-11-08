@@ -46,9 +46,8 @@ not used:
 cd generic-cli && GOWORK=off go build ./... && GOWORK=off go test ./... && GOWORK=off go vet ./...
 ```
 
-Until `easyssl-contract` is published, each plugin reaches it through a
-relative `replace` to `../../contract`, so it builds only from a checkout with
-the contract beside this repository.
+Each plugin requires a released version of `easyssl-contract`, so a clone of
+this repository builds on its own.
 
 A release binary is built for Linux as below, with the Go version the plugin's
 `go.mod` names and the version from its tag. The same command reproduces it
