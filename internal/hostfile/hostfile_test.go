@@ -1,13 +1,35 @@
 package hostfile
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/easyssl-io/easyssl-plugins/internal/testkeys"
 )
+
+// testWriteOp is the operation WriteAs passes the test binary, which TestMain
+// carries out as a Plugin's main does.
+const testWriteOp = "hostfile-test-write"
+
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == testWriteOp {
+		var req WriteRequest
+		err := json.NewDecoder(os.Stdin).Decode(&req)
+		if err == nil {
+			err = Write(req)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 // ownedDir is a fresh directory only its owner can write, as WriterFor
 // requires of every directory on the way to a file.

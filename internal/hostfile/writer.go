@@ -71,24 +71,41 @@ func WriteAs(op, path string, data []byte, remove bool) error {
 		// Root's own directories, or this process already is the writer.
 		return Write(req)
 	}
-	self, err := os.Executable()
+	self, err := executable()
 	if err != nil {
 		return err
 	}
+	bin, err := os.Open(self)
+	if err != nil {
+		return err
+	}
+	defer bin.Close()
 	body, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(self, op)
+	// The child executes the binary through the descriptor it inherits as fd 3,
+	// not by its path: the Agent keeps Plugins inside its 0700 state directory,
+	// which the file's owner cannot traverse.
+	cmd := exec.Command("/proc/self/fd/3", op)
+	cmd.ExtraFiles = []*os.File{bin}
 	cmd.Stdin = bytes.NewReader(body)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: w.Sys()}
 	cmd.Env = []string{"PATH=/usr/bin:/bin"}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("as uid %d: %s", w.UID, strings.TrimSpace(string(out)))
+		// A child that never started, or died before writing anything, has
+		// only err to say why.
+		if msg := strings.TrimSpace(string(out)); msg != "" {
+			return fmt.Errorf("as uid %d: %s", w.UID, msg)
+		}
+		return fmt.Errorf("as uid %d: %w", w.UID, err)
 	}
 	return nil
 }
+
+// executable is the Plugin's own binary, which WriteAs runs again.
+var executable = os.Executable
 
 // ErrUnsafe is a path a file cannot be written to safely.
 var ErrUnsafe = errors.New("unsafe path")
