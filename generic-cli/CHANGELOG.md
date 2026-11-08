@@ -1,0 +1,12 @@
+# Changelog
+
+Every release of the `generic-cli` Plugin, newest first, each tagged `generic-cli/v<version>`.
+
+## 0.1.0
+
+The first release, built against `easyssl-contract` 0.1.0.
+
+- Deploys by running a shell script you write, with the Certificate, its
+  chain, the full chain and the private key in temporary files named by
+  `EASYSSL_CERTIFICATE_PATH`, `EASYSSL_CHAIN_PATH`, `EASYSSL_FULLCHAIN_PATH`
+  and `EASYSSL_KEY_PATH`. It discovers nothing.
