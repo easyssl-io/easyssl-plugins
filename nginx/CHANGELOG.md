@@ -12,4 +12,6 @@ The first release, built against `easyssl-contract` 0.1.0.
 - Deploys by writing the certificate and key in place, keeping each file's
   owner, mode, ACLs and SELinux label, testing the configuration, reloading
   only when the test passes, and checking over TLS that nginx serves the new
-  Certificate. A failure puts the previous files back.
+  Certificate. A failed test puts the previous files back; a failed reload
+  leaves the new files in place, and nginx keeps serving what it last
+  loaded.

@@ -13,4 +13,5 @@ The first release, built against `easyssl-contract` 0.1.0.
   owner, mode, ACLs and other extended attributes, running the instance's
   configuration test, reloading, and checking over TLS that every place the
   file is served presents the new Certificate. A failure puts the previous
-  files back.
+  files back, except a failed reload of a file no running Apache loads yet,
+  which leaves the new files in place.
