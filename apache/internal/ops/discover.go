@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-contract/plugincontract"
 	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
@@ -31,9 +32,10 @@ func Describe() DescribeResponse {
 	}
 }
 
-// Discover answers with what this host's Apache serves. A certificate is
-// suggested only when everything about how Apache uses it is sound; any finding
-// is a warning instead, so an operator fixes it before a renewal meets it.
+// Discover answers with what this host's Apache serves: every certificate file
+// it loads, with the directives that name it. One is suggested only when
+// everything about how Apache uses it is sound; any finding is a warning of
+// its own instead, so an operator fixes it before a renewal meets it.
 // discover never fails for what it finds.
 func Discover() DiscoverResponse {
 	resp := DiscoverResponse{
@@ -134,8 +136,12 @@ var uriRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:[^/]`)
 
 // location is one place a master loads a certificate file.
 type location struct {
-	m         *master
-	where     string // the SSLCertificateFile's file:line
+	m     *master
+	where string // the SSLCertificateFile's file:line
+	// certDir and keyDir are the directives naming the files, keyDir nil when
+	// none pairs with the certificate.
+	certDir   directive
+	keyDir    *directive
 	vhost     *vhostCfg
 	certPath  string
 	keyPath   string // "" when the key is inside the certificate file
@@ -159,19 +165,21 @@ func resolveIn(root, p string) string {
 }
 
 // locationsOf lists every place m loads a certificate file, where a client
-// reaches it, and what is wrong with it.
-func locationsOf(m *master, s *serverCfg, changed []string) []*location {
+// reaches it, and what is wrong with it, and warns about an
+// SSLCertificateFile that names no file, of which no Target can be made.
+func locationsOf(m *master, s *serverCfg, changed []string) ([]*location, []l10n.Text) {
 	var changes []msg
 	for _, f := range changed {
 		file := f
 		changes = append(changes, func(p l10n.Printer) string {
 			return p.T("apache.problem.config_changed",
-				"`{file}` changed since the instance last loaded its configuration, so a reload would also apply those edits",
+				"`{file}` changed since the instance last loaded its configuration, so a reload would also apply those edits.",
 				"file", file)
 		})
 	}
 	colls := s.nameCollisions()
 	var locs []*location
+	var warnings []l10n.Text
 	// use adds one location per certificate of a group (a virtual host's own,
 	// or the server-level ones where they are used), each paired with its key
 	// by position, as mod_ssl pairs them.
@@ -193,11 +201,11 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 				// replaces it when another of that type is set (the manual of
 				// SSL_CTX_use_certificate), and mod_ssl loads the files in
 				// order (ssl_init_server_certs), so only the last is served.
-				coll = &collision{say: func(p l10n.Printer, certs string) string {
+				coll = &collision{say: func(p l10n.Printer) string {
 					return p.T("apache.warning.same_key_type",
 						"{count} {alg} certificates in one place ({places}): Apache serves only the last of each key type, "+
-							"yet loads every one on every reload. Keep one certificate per key type. Not suggested: {certificates}.",
-						"count", n, "alg", alg, "places", places, "certificates", certs)
+							"yet loads every one on every reload. Keep one certificate per key type.",
+						"count", n, "alg", alg, "places", places)
 				}}
 			}
 		}
@@ -205,30 +213,30 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 			at := fmt.Sprintf("%s:%d", chains[0].file, chains[0].line)
 			common = append(common, func(p l10n.Printer) string {
 				return p.T("apache.problem.chain_file",
-					"it is used with `SSLCertificateChainFile` (`{at}`), which is deprecated since httpd 2.4.8: `SSLCertificateFile` "+
+					"It is used with `SSLCertificateChainFile` (`{at}`), which is deprecated since httpd 2.4.8: `SSLCertificateFile` "+
 						"loads the intermediate certificates itself, and a Deployment writes the full chain there, so the intermediates "+
-						"would be sent twice. Remove the `SSLCertificateChainFile` directive and put the chain in the certificate file",
+						"would be sent twice. Remove the `SSLCertificateChainFile` directive and put the chain in the certificate file.",
 					"at", at)
 			})
 		}
 		common = append(common, changes...)
 		for i, c := range certs {
-			named := []directive{c}
-			if i < len(keys) {
-				named = append(named, keys[i])
+			if uriRe.MatchString(c.args[0]) {
+				warnings = append(warnings, T("apache.warning.not_a_file",
+					"`{value}` (`{at}`) names a certificate held in a token rather than a file, so a Deployment has no file to write, and nothing there is reported",
+					"value", c.args[0], "at", fmt.Sprintf("%s:%d", c.file, c.line)))
+				continue
 			}
 			var uris []msg
-			for _, d := range named {
-				if uriRe.MatchString(d.args[0]) {
-					value, at := d.args[0], fmt.Sprintf("%s:%d", d.file, d.line)
-					uris = append(uris, func(p l10n.Printer) string {
-						return p.T("apache.problem.not_a_file",
-							"`{value}` (`{at}`) names a key or certificate held in a token rather than a file, so a Deployment has no file to write",
-							"value", value, "at", at)
-					})
-				}
+			if i < len(keys) && uriRe.MatchString(keys[i].args[0]) {
+				value, at := keys[i].args[0], fmt.Sprintf("%s:%d", keys[i].file, keys[i].line)
+				uris = append(uris, func(p l10n.Printer) string {
+					return p.T("apache.problem.key_not_a_file",
+						"Its key `{value}` (`{at}`) is held in a token rather than a file, so a Deployment has no file to write it to.",
+						"value", value, "at", at)
+				})
 			}
-			l := &location{m: m, where: fmt.Sprintf("%s:%d", c.file, c.line), vhost: v,
+			l := &location{m: m, where: fmt.Sprintf("%s:%d", c.file, c.line), certDir: c, vhost: v,
 				certPath: resolveIn(s.root(m), c.args[0]), alg: infos[i].alg()}
 			for j, o := range certs {
 				if j != i {
@@ -243,26 +251,26 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 			}
 			l.problems = append(l.problems, common...)
 			l.problems = append(l.problems, uris...)
-			if i < len(keys) {
-				l.keyPath = resolveIn(s.root(m), keys[i].args[0])
-			} else {
+			switch {
+			case i < len(keys) && uriRe.MatchString(keys[i].args[0]):
+				l.keyDir, l.keyPath = &keys[i], keys[i].args[0]
+			case i < len(keys):
+				l.keyDir, l.keyPath = &keys[i], resolveIn(s.root(m), keys[i].args[0])
+			default:
 				at := l.where
 				if b, err := os.ReadFile(l.certPath); err == nil && pemfile.HasPrivateKey(b) {
 					l.problems = append(l.problems, func(p l10n.Printer) string {
 						return p.T("apache.problem.key_in_cert",
-							"the private key is inside the certificate file (no `SSLCertificateKeyFile` for `{at}`), and a Deployment writes them as two files",
+							"The private key is inside the certificate file (no `SSLCertificateKeyFile` for `{at}`), and a Deployment writes them as two files.",
 							"at", at)
 					})
 				} else {
 					l.problems = append(l.problems, func(p l10n.Printer) string {
-						return p.T("apache.problem.no_key", "no `SSLCertificateKeyFile` pairs with the certificate at `{at}`", "at", at)
+						return p.T("apache.problem.no_key", "No `SSLCertificateKeyFile` pairs with the certificate at `{at}`.", "at", at)
 					})
 				}
 			}
-			if coll != nil {
-				l.coll = coll
-				coll.add(l.certPath)
-			}
+			l.coll = coll
 			locs = append(locs, l)
 		}
 	}
@@ -284,12 +292,12 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 		case !s.engineOn(v) && strings.EqualFold(v.engineWord, "optional"):
 			common = append(common, func(p l10n.Printer) string {
 				return p.T("apache.problem.engine_optional",
-					"`SSLEngine optional` in the virtual host at `{vhost}` is no longer supported by httpd 2.4, which treats the port as plain HTTP (AH10510), so it never serves this certificate",
+					"`SSLEngine optional` in the virtual host at `{vhost}` is no longer supported by httpd 2.4, which treats the port as plain HTTP (AH10510), so it never serves this certificate.",
 					"vhost", at)
 			})
 		case !s.engineOn(v):
 			common = append(common, func(p l10n.Printer) string {
-				return p.T("apache.problem.engine_off", "`SSLEngine` is off in the virtual host at `{vhost}`, so it never serves this certificate", "vhost", at)
+				return p.T("apache.problem.engine_off", "`SSLEngine` is off in the virtual host at `{vhost}`, so it never serves this certificate.", "vhost", at)
 			})
 		case colls[v] == nil:
 			for _, a := range v.addrs {
@@ -303,7 +311,7 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 		if s.proxy || v.proxy {
 			common = append(common, func(p l10n.Printer) string {
 				return p.T("apache.problem.proxy_protocol",
-					"the virtual host at `{vhost}` expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves",
+					"The virtual host at `{vhost}` expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves.",
 					"vhost", at)
 			})
 		}
@@ -328,7 +336,7 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 			if s.proxy {
 				common = append(common, func(p l10n.Printer) string {
 					return p.T("apache.problem.proxy_protocol_server",
-						"the main server expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves")
+						"The main server expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves.")
 				})
 			}
 			use(s.certs, s.keys, s.chains, nil, eps, common, nil)
@@ -338,11 +346,11 @@ func locationsOf(m *master, s *serverCfg, changed []string) []*location {
 		at := fmt.Sprintf("%s:%d", s.certs[0].file, s.certs[0].line)
 		use(s.certs, s.keys, s.chains, nil, nil, []msg{func(p l10n.Printer) string {
 			return p.T("apache.problem.unused_server_level",
-				"it is configured at server level (`{at}`), but every TLS virtual host has its own certificate and the main server serves no TLS, so nothing serves it",
+				"It is configured at server level (`{at}`), but every TLS virtual host has its own certificate and the main server serves no TLS, so nothing serves it.",
 				"at", at)
 		}}, nil)
 	}
-	return locs
+	return locs, warnings
 }
 
 // root is the ServerRoot relative paths resolve against: the one the
@@ -356,13 +364,12 @@ type certFile struct {
 	locs []*location
 }
 
-// survey is a host's analysis: every certificate file and its problems, every
-// collision, and the warnings that belong to an instance rather than to a
-// file.
+// survey is a host's analysis: every certificate file and its problems, and
+// the warnings that belong to an instance, or to a value naming no file,
+// rather than to a certificate file.
 type survey struct {
 	files    []*certFile
-	problems map[string][]msg // per certificate path
-	colls    []*collision
+	problems map[string][]msg // per certificate path, collisions included
 	warnings []l10n.Text
 	infos    map[string]certInfo
 	readErr  map[string]error
@@ -391,7 +398,9 @@ func surveyOf(masters []*master, read configReader) *survey {
 			continue
 		}
 		sv.cfgs[m] = s
-		for _, l := range locationsOf(m, s, changed) {
+		locs, warnings := locationsOf(m, s, changed)
+		sv.warnings = append(sv.warnings, warnings...)
+		for _, l := range locs {
 			f := byPath[l.certPath]
 			if f == nil {
 				f = &certFile{path: l.certPath}
@@ -402,25 +411,21 @@ func surveyOf(masters []*master, read configReader) *survey {
 		}
 	}
 	sort.Slice(sv.files, func(i, j int) bool { return sv.files[i].path < sv.files[j].path })
-	seen := map[*collision]bool{}
 	for _, f := range sv.files {
 		sv.problems[f.path] = sv.fileProblems(f)
-		for _, l := range f.locs {
-			if l.coll != nil && !seen[l.coll] {
-				seen[l.coll] = true
-				sv.colls = append(sv.colls, l.coll)
-			}
-		}
 	}
 	return sv
 }
 
 // fileProblems is everything that keeps one certificate file from being
-// suggested, beyond collisions.
+// suggested.
 func (sv *survey) fileProblems(f *certFile) []msg {
 	var out []msg
 	keys, pids := map[string]bool{}, map[int]bool{}
 	for _, l := range f.locs {
+		if l.coll != nil {
+			out = append(out, l.coll.say)
+		}
 		out = append(out, l.problems...)
 		pids[l.m.PID] = true
 		if l.keyPath != "" {
@@ -430,9 +435,14 @@ func (sv *survey) fileProblems(f *certFile) []msg {
 	ci, err := readCert(f.path)
 	sv.infos[f.path], sv.readErr[f.path] = ci, err
 	if err != nil {
-		path, why := f.path, err.Error()
+		why := err.Error()
 		out = append(out, func(p l10n.Printer) string {
-			return p.T("apache.problem.unreadable_certificate", "`{path}` holds no certificate this Plugin can read: {error}", "path", path, "error", why)
+			return p.T("apache.problem.unreadable_certificate", "It holds no certificate this Plugin can read: {error}.", "error", why)
+		})
+	} else if ci.sanErr != nil {
+		why := ci.sanErr.Error()
+		out = append(out, func(p l10n.Printer) string {
+			return p.T("apache.problem.names_unreadable", "Its names could not be read: {error}.", "error", why)
 		})
 	}
 	if len(pids) > 1 {
@@ -444,9 +454,15 @@ func (sv *survey) fileProblems(f *certFile) []msg {
 		list, n := strings.Join(ps, ", "), len(pids)
 		out = append(out, func(p l10n.Printer) string {
 			return p.T("apache.problem.shared",
-				"{count} Apache instances load it ({instances}), and a renewal is complete only once every one of them has reloaded. Give each instance its own copy",
+				"{count} Apache instances load it ({instances}), and a renewal is complete only once every one of them has reloaded. Give each instance its own copy.",
 				"count", n, "instances", list)
 		})
+	}
+	files := map[string]bool{} // the keys that are files
+	for k := range keys {
+		if !uriRe.MatchString(k) {
+			files[k] = true
+		}
 	}
 	if len(keys) > 1 {
 		var ks []string
@@ -464,45 +480,51 @@ func (sv *survey) fileProblems(f *certFile) []msg {
 		if hostfile.SameContent(files) {
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.key_conflict.same_bytes",
-					"it is paired with several key files holding the same key ({keys}); point every use at one file, "+
-						"since a renewal writes only one and the next reload then fails on a key that no longer matches",
+					"It is paired with several key files holding the same key ({keys}); point every use at one file, "+
+						"since a renewal writes only one and the next reload then fails on a key that no longer matches.",
 					"keys", list)
 			})
 		} else {
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.key_conflict.different",
-					"it is paired with different keys ({keys}), so at least one place pairs it with a key that does not match, "+
-						"and the next reload fails there",
+					"It is paired with different keys ({keys}), so at least one place pairs it with a key that does not match, "+
+						"and the next reload fails there.",
 					"keys", list)
 			})
 		}
 	}
-	paths := []string{f.path}
-	for k := range keys {
-		paths = append(paths, k)
+	var sorted []string
+	for k := range files {
+		sorted = append(sorted, k)
 	}
-	sort.Strings(paths[1:])
-	for _, path := range paths {
-		out = append(out, pathProblems(path)...)
+	sort.Strings(sorted)
+	out = append(out, pathProblems(f.path, false)...)
+	for _, k := range sorted {
+		out = append(out, pathProblems(k, true)...)
 	}
-	for k := range keys {
+	for _, k := range sorted {
 		if b, err := os.ReadFile(k); err == nil && pemfile.EncryptedKey(b) {
 			key := k
 			out = append(out, func(p l10n.Printer) string {
-				return p.T("apache.problem.encrypted_key", "its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection", "key", key)
+				return p.T("apache.problem.encrypted_key", "Its key `{key}` is protected by a passphrase, and a Deployment cannot keep that protection.", "key", key)
 			})
 		}
 	}
 	for _, l := range f.locs {
-		for _, path := range []string{l.certPath, l.keyPath} {
-			if path != "" && !readableBy(l.m.Cred, path) {
-				pid, uid, pth := l.m.PID, l.m.Cred.UID, path
-				out = append(out, func(p l10n.Printer) string {
-					return p.T("apache.problem.unreadable",
-						"`pid {pid}` runs as uid {uid} and cannot read `{path}`, so its next reload or restart fails",
-						"pid", pid, "uid", uid, "path", pth)
-				})
-			}
+		pid, uid := l.m.PID, l.m.Cred.UID
+		if !readableBy(l.m.Cred, l.certPath) {
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.unreadable",
+					"`pid {pid}` runs as uid {uid} and cannot read the certificate file, so its next reload or restart fails.",
+					"pid", pid, "uid", uid)
+			})
+		}
+		if key := l.keyPath; files[key] && !readableBy(l.m.Cred, key) {
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.key_unreadable",
+					"`pid {pid}` runs as uid {uid} and cannot read its key `{key}`, so its next reload or restart fails.",
+					"pid", pid, "uid", uid, "key", key)
+			})
 		}
 	}
 	return dedupe(out)
@@ -532,65 +554,63 @@ func readableBy(c cred, path string) bool {
 	return err == nil
 }
 
-// suggestable reports whether a file has nothing against it at all.
-func (sv *survey) suggestable(f *certFile) bool {
-	if len(sv.problems[f.path]) > 0 {
-		return false
+// warningsOf is what keeps f from being suggested, each finding a warning of
+// its own: none means it is suggested.
+func (sv *survey) warningsOf(f *certFile) []l10n.Text {
+	out := []l10n.Text{}
+	for _, m := range sv.problems[f.path] {
+		out = append(out, perLanguage(m))
 	}
-	for _, l := range f.locs {
-		if l.coll != nil {
-			return false
-		}
-	}
-	return true
+	return out
 }
 
-// warningFor is the warning that keeps f from being suggested, nil when it has
-// no problem of its own (it may still be part of a collision, whose own
-// warning names it).
-func (sv *survey) warningFor(f *certFile) *l10n.Text {
-	probs := sv.problems[f.path]
-	if len(probs) == 0 {
-		return nil
-	}
-	path := f.path
-	inColl := false
-	for _, l := range f.locs {
-		inColl = inColl || l.coll != nil
-	}
-	w := perLanguage(func(p l10n.Printer) string {
-		var parts []string
-		for _, m := range probs {
-			parts = append(parts, m(p))
+// referencesOf is every directive the locations name a file with, once each:
+// the SSLCertificateFile and, when it names a file, the SSLCertificateKeyFile
+// mod_ssl pairs with it, each with its argument as written in the file.
+// Sorted by file and line, so two runs compare equal. relocate finds the
+// references a move changes with this too, so what it changes is what
+// discovery reported.
+func referencesOf(locs []*location) []plugincontract.Reference {
+	seen := map[plugincontract.Reference]bool{}
+	out := []plugincontract.Reference{}
+	add := func(r plugincontract.Reference) {
+		if !seen[r] {
+			seen[r] = true
+			out = append(out, r)
 		}
-		if inColl {
-			parts = append(parts, p.T("apache.problem.in_collision", "it is also part of a collision reported separately"))
+	}
+	for _, l := range locs {
+		add(plugincontract.Reference{Setting: SettingCertificate, File: l.certDir.file, Line: l.certDir.line,
+			Value: asWritten(l.certDir, SettingCertificate)})
+		if k := l.keyDir; k != nil && !uriRe.MatchString(k.args[0]) {
+			add(plugincontract.Reference{Setting: SettingKey, File: k.file, Line: k.line, Value: asWritten(*k, SettingKey)})
 		}
-		return p.T("apache.warning.not_suggested", "`{path}` is not suggested: {problems}.", "path", path, "problems", strings.Join(parts, "; "))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.File != b.File {
+			return a.File < b.File
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		if a.Setting != b.Setting {
+			return a.Setting < b.Setting
+		}
+		return a.Value < b.Value
 	})
-	return &w
+	return out
 }
 
 // analyze turns a survey into what discover answers: a discovered Target per
-// suggestable certificate file, and a warning per collision, per file that is
-// not suggested, and per instance that could not be read.
+// certificate file, with its references and its own warnings, and a warning
+// per instance that could not be read and per value that names no file.
 func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.Text) {
 	sv := surveyOf(masters, read)
 	targets := []DiscoveredTarget{}
 	warnings := append([]l10n.Text{}, sv.warnings...)
-	for _, c := range sv.colls {
-		warnings = append(warnings, c.text())
-	}
 	for _, f := range sv.files {
-		if w := sv.warningFor(f); w != nil {
-			warnings = append(warnings, *w)
-			continue
-		}
-		if !sv.suggestable(f) {
-			continue // a collision's own warning names it
-		}
 		first := f.locs[0]
-		ci := sv.infos[f.path]
 		t := DiscoveredTarget{
 			Settings: map[string]string{
 				SettingCertificate: f.path,
@@ -598,25 +618,42 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 				SettingTest:        first.m.testCommand(),
 				SettingReload:      first.m.reloadCommand(),
 			},
-			Certificate: &DiscoveredCertificate{Domains: ci.sans, KeyType: ci.keyType, SHA256: ci.sha256},
+			ExtraData:  []ExtraDatum{},
+			References: referencesOf(f.locs),
+			Warnings:   sv.warningsOf(f),
 		}
-		if ci.sans == nil {
-			t.Certificate.Domains = []string{}
+		if len(t.References) > plugincontract.MaxReferences {
+			// The answer would be refused whole; a move of this certificate is
+			// refused instead, since its confirmed references would not be
+			// all of them.
+			t.References = t.References[:plugincontract.MaxReferences]
 		}
-		if ci.sanErr != nil {
-			// Apache serves the file and a Deployment replacing it works; only
-			// what this Plugin reads from it is missing, so it is suggested and
-			// the missing names are explained.
-			path, why := f.path, ci.sanErr.Error()
-			warnings = append(warnings, T("apache.warning.names_unreadable",
-				"`{path}`: its names could not be read, so none are reported: {error}", "path", path, "error", why))
+		if sv.readErr[f.path] == nil {
+			ci := sv.infos[f.path]
+			t.Certificate = &DiscoveredCertificate{Domains: ci.sans, KeyType: ci.keyType, SHA256: ci.sha256}
+			if ci.sans == nil {
+				t.Certificate.Domains = []string{}
+			}
 		}
-		var lines []string
-		for _, l := range f.locs {
-			lines = append(lines, fmt.Sprintf("%s (pid %d)", l.where, l.m.PID))
-		}
-		t.ExtraData = []ExtraDatum{{Label: T("apache.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
 	}
-	return targets, warnings
+	return capped(targets, warnings)
+}
+
+// capped keeps an answer within the contract's bound on discovered Targets,
+// which the Agent would otherwise refuse whole: the suggested ones first, then
+// the warned, and a warning counting what was left out.
+func capped(targets []DiscoveredTarget, warnings []l10n.Text) ([]DiscoveredTarget, []l10n.Text) {
+	if len(targets) <= plugincontract.MaxDiscoveredTargets {
+		return targets, warnings
+	}
+	sort.SliceStable(targets, func(i, j int) bool { return len(targets[i].Warnings) == 0 && len(targets[j].Warnings) > 0 })
+	left := len(targets) - plugincontract.MaxDiscoveredTargets
+	targets = targets[:plugincontract.MaxDiscoveredTargets]
+	sort.SliceStable(targets, func(i, j int) bool {
+		return targets[i].Settings[SettingCertificate] < targets[j].Settings[SettingCertificate]
+	})
+	return targets, append(warnings, T("apache.warning.too_many",
+		"{count} more certificates were found and are not reported, because one answer reports at most {max}.",
+		"count", left, "max", plugincontract.MaxDiscoveredTargets))
 }

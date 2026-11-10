@@ -443,7 +443,7 @@ func (s *serverCfg) endpointsOf(v *vhostCfg, addr string) ([]endpoint, msg) {
 				defAt := fmt.Sprintf("%s:%d", set.entries[0].file, set.entries[0].line)
 				return nil, func(pr l10n.Printer) string {
 					return pr.T("apache.problem.plain_default",
-						"the virtual host at `{vhost}` is on `{address}`, whose default virtual host (`{default}`) does not use TLS, so that port speaks plain HTTP",
+						"The virtual host at `{vhost}` is on `{address}`, whose default virtual host (`{default}`) does not use TLS, so that port speaks plain HTTP.",
 						"vhost", at, "address", key, "default", defAt)
 				}
 			}
@@ -468,7 +468,7 @@ func (s *serverCfg) endpointsOf(v *vhostCfg, addr string) ([]endpoint, msg) {
 	if !anyListen {
 		return nil, func(pr l10n.Printer) string {
 			return pr.T("apache.problem.not_listened",
-				"nothing listens where the virtual host at `{vhost}` could be reached (`{address}`, no matching `Listen`), so it is never reached",
+				"Nothing listens where the virtual host at `{vhost}` could be reached (`{address}`, no matching `Listen`), so it is never reached.",
 				"vhost", at, "address", addr)
 		}
 	}
@@ -476,12 +476,12 @@ func (s *serverCfg) endpointsOf(v *vhostCfg, addr string) ([]endpoint, msg) {
 		list := strings.Join(taken, ", ")
 		return nil, func(pr l10n.Printer) string {
 			return pr.T("apache.problem.more_specific",
-				"every address the virtual host at `{vhost}` could be reached at belongs to a more specific virtual host ({taken})",
+				"Every address the virtual host at `{vhost}` could be reached at belongs to a more specific virtual host ({taken}).",
 				"vhost", at, "taken", list)
 		}
 	}
 	return nil, func(pr l10n.Printer) string {
-		return pr.T("apache.problem.not_listed", "httpd lists the virtual host at `{vhost}` for no address", "vhost", at)
+		return pr.T("apache.problem.not_listed", "httpd lists the virtual host at `{vhost}` for no address.", "vhost", at)
 	}
 }
 
@@ -489,30 +489,10 @@ func (s *serverCfg) endpointsOf(v *vhostCfg, addr string) ([]endpoint, msg) {
 // hides another: Apache never serves the hidden one, yet still loads its files
 // on every reload, so a broken file there takes the server down (a mismatched
 // key in a never-selected virtual host made the master exit on a test host).
-// It is reported once, as a discovery warning, and none of the certificates
-// involved is suggested, so the operator fixes it before it bites.
+// It is a warning of every certificate involved, the same text for each, so
+// none of them is suggested and the operator fixes it before it bites.
 type collision struct {
-	say   func(p l10n.Printer, certs string) string
-	certs []string
-}
-
-func (c *collision) add(p string) {
-	for _, x := range c.certs {
-		if x == p {
-			return
-		}
-	}
-	c.certs = append(c.certs, p)
-}
-
-func (c *collision) text() l10n.Text {
-	sort.Strings(c.certs)
-	var q []string
-	for _, p := range c.certs {
-		q = append(q, "`"+p+"`")
-	}
-	certs := strings.Join(q, ", ")
-	return perLanguage(func(p l10n.Printer) string { return c.say(p, certs) })
+	say msg
 }
 
 // nameCollisions finds, in each address set, every virtual host that never
@@ -571,7 +551,7 @@ func (s *serverCfg) nameCollisions() map[*vhostCfg]*collision {
 			continue
 		}
 		key := k
-		c := &collision{say: func(p l10n.Printer, certs string) string {
+		c := &collision{say: func(p l10n.Printer) string {
 			var parts []string
 			for _, it := range items {
 				parts = append(parts, it(p))
@@ -579,8 +559,8 @@ func (s *serverCfg) nameCollisions() map[*vhostCfg]*collision {
 			return p.T("apache.warning.name_collision",
 				"Name collision on `{address}`: {items}. Apache picks the first virtual host that matches a name, "+
 					"so a virtual host is never served for a name another one takes, yet Apache still loads its certificate "+
-					"on every reload. Give each virtual host names of its own. Not suggested: {certificates}.",
-				"address", key, "items", strings.Join(parts, "; "), "certificates", certs)
+					"on every reload. Give each virtual host names of its own.",
+				"address", key, "items", strings.Join(parts, "; "))
 		}}
 		for e := range involved {
 			if v := s.cfgOf(e); v != nil {

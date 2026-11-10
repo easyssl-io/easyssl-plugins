@@ -10,6 +10,12 @@ Built against `easyssl-contract` 0.1.1.
   `/etc/letsencrypt`, acme.sh, dehydrated, lego) is no longer refused by this
   Plugin, in discovery or in a Deployment: the Agent knows those clients,
   warns about such a certificate and refuses to deploy there itself.
+- Discovery reports every certificate file it can attribute, suggested or not,
+  each with the configuration lines that name its certificate and key files
+  (`references`, the argument as the file writes it) and its own warnings,
+  worded without its path: a name or key type collision is now a warning of
+  each certificate in it. A certificate whose names cannot be read is no longer
+  suggested. The `Locations` extra data is gone: the references replace it.
 
 ## 0.1.0
 

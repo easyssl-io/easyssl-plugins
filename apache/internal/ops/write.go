@@ -6,27 +6,44 @@ import (
 )
 
 // pathProblems words what keeps a file from being replaced safely
-// (hostfile.Problems), for discovery to warn about before anyone accepts the
-// suggestion.
-func pathProblems(path string) []msg {
+// (hostfile.Problems): the certificate file itself, which a reader sees named
+// beside the warning, or a key, which the warning names. Discovery does not
+// suggest a certificate with any, and deploy refuses one.
+func pathProblems(path string, key bool) []msg {
 	var out []msg
 	for _, pr := range hostfile.Problems(path) {
-		switch pr.Kind {
-		case hostfile.HardLink:
+		switch {
+		case pr.Kind == hostfile.HardLink && key:
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.key_hard_link",
+					"Its key `{key}` has {links} hard links, and replacing it would leave the other names with the previous content.",
+					"key", pr.Path, "links", pr.Links)
+			})
+		case pr.Kind == hostfile.HardLink:
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.hard_link",
-					"`{path}` has {links} hard links, and replacing it would leave the other names with the previous content",
-					"path", pr.Path, "links", pr.Links)
+					"The certificate file has {links} hard links, and replacing it would leave the other names with the previous content.",
+					"links", pr.Links)
 			})
-		case hostfile.ImmutableFile:
+		case pr.Kind == hostfile.ImmutableFile && key:
 			out = append(out, func(p l10n.Printer) string {
-				return p.T("apache.problem.immutable", "`{path}` is immutable or append-only (`chattr +i` or `+a`), so it cannot be replaced", "path", pr.Path)
+				return p.T("apache.problem.key_immutable", "Its key `{key}` is immutable or append-only (`chattr +i` or `+a`), so it cannot be replaced.", "key", pr.Path)
 			})
-		case hostfile.Unsafe:
+		case pr.Kind == hostfile.ImmutableFile:
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.immutable", "The certificate file is immutable or append-only (`chattr +i` or `+a`), so it cannot be replaced.")
+			})
+		case pr.Kind == hostfile.Unsafe && key:
+			out = append(out, func(p l10n.Printer) string {
+				return p.T("apache.problem.key_unsafe_path",
+					"Its key `{key}` cannot be replaced safely, because a user other than its owner could change where its path leads: {reason}.",
+					"key", pr.Path, "reason", pr.Reason)
+			})
+		case pr.Kind == hostfile.Unsafe:
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.unsafe_path",
-					"`{path}` cannot be replaced safely, because a user other than its owner could change where its path leads: {reason}",
-					"path", pr.Path, "reason", pr.Reason)
+					"The certificate file cannot be replaced safely, because a user other than its owner could change where its path leads: {reason}.",
+					"reason", pr.Reason)
 			})
 		}
 	}

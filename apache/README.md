@@ -4,9 +4,13 @@ The easySSL Plugin for the Apache HTTP Server (`httpd`, `apache2`).
 
 It finds the certificates every running Apache master serves, reading its
 configuration as httpd itself reports it (`DUMP_CONFIG` with every conditional
-evaluated, and `DUMP_VHOSTS`), and works out where a client reaches each one. A
-certificate is suggested as a Target only when nothing about how Apache uses it
-could make a renewal go wrong; anything else is a discovery warning instead.
+evaluated, and `DUMP_VHOSTS`), and works out where a client reaches each one.
+Each certificate file is reported with every `SSLCertificateFile` and
+`SSLCertificateKeyFile` line that names its files, its argument read back from
+the file as written. It is suggested as a Target only when nothing about how
+Apache uses it could make a renewal go wrong; anything else is a warning of its
+own instead. A certificate held in a token rather than a file is a warning
+alone, since nothing there can be a Target.
 
 It deploys by checking the Target and every other certificate and key the
 reload loads, writing the full chain and the key with everything but their
