@@ -1,5 +1,5 @@
-// Package ops implements generic-cli's three operations, describe, discover
-// and deploy; main.go is only the stdio framing. The request and response
+// Package ops implements generic-cli's operations, describe, discover, deploy
+// and relocate; main.go is only the stdio framing. The request and response
 // shapes are the shared plugincontract types the Agent compiles against, so a
 // field added on one side cannot be silently ignored on the other.
 package ops
@@ -15,6 +15,7 @@ const (
 	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
+	OpRelocate = plugincontract.OpRelocate
 
 	// SettingTypeCommand is the only setting type this Plugin uses.
 	SettingTypeCommand = plugincontract.SettingTypeCommand
@@ -43,4 +44,6 @@ type (
 	DiscoveredTarget = plugincontract.DiscoveredTarget
 	// DeployRequest is OpDeploy's request.
 	DeployRequest = plugincontract.DeployRequest
+	// RelocateRequest is OpRelocate's request.
+	RelocateRequest = plugincontract.RelocateRequest
 )

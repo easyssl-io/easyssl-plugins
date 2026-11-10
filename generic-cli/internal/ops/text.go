@@ -2,6 +2,7 @@ package ops
 
 import (
 	"embed"
+	"os"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 )
@@ -20,4 +21,18 @@ var catalog = l10n.MustLoad(locales, "locales")
 // English, so rewording the English orphans no translation.
 func T(id, english string, args ...any) l10n.Text {
 	return catalog.Text(id, english, args...)
+}
+
+// hostLanguage is the language relocate speaks to the person running the
+// Agent's command: EASYSSL_LANG when it names a supported language, which is
+// how the Agent passes on the language it speaks, else the locale's, else
+// English.
+func hostLanguage() string {
+	if l, ok := l10n.Base(os.Getenv("EASYSSL_LANG")); ok {
+		return l
+	}
+	if l, ok := l10n.FromLocale(os.Getenv); ok {
+		return l
+	}
+	return l10n.English
 }

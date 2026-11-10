@@ -2,6 +2,13 @@
 
 Every release of the `generic-cli` Plugin, newest first, each tagged `generic-cli/v<version>`.
 
+## Unreleased
+
+Built against `easyssl-contract` 0.1.1.
+
+- Answers `relocate`: a request with nothing to move succeeds, changing
+  nothing, and any move is refused, since this Plugin reads no configuration.
+
 ## 0.1.0
 
 The first release, built against `easyssl-contract` 0.1.0.

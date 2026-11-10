@@ -39,7 +39,7 @@ func main() {
 // run is main with its edges passed in, so the stdio framing is testable.
 func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: %s <%s|%s|%s>", ops.Name, ops.OpDescribe, ops.OpDiscover, ops.OpDeploy)
+		return fmt.Errorf("usage: %s <%s|%s|%s|%s>", ops.Name, ops.OpDescribe, ops.OpDiscover, ops.OpDeploy, ops.OpRelocate)
 	}
 	switch args[0] {
 	case ops.OpDescribe:
@@ -54,6 +54,12 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// No response document: the exit status is the answer, and everything the run
 		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
+	case ops.OpRelocate:
+		var req ops.RelocateRequest
+		if err := readJSON(stdin, &req); err != nil {
+			return fmt.Errorf("reading the relocate request: %w", err)
+		}
+		return ops.Relocate(req, stdout)
 	default:
 		// Not an operation of the contract version this build reports, which
 		// the Agent never sends; someone ran it by hand.

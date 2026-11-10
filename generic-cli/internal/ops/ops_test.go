@@ -381,3 +381,23 @@ func deploy(t *testing.T, req ops.DeployRequest) deployResult {
 	}
 	return r
 }
+
+// generic-cli reads no configuration: nothing to move succeeds, changing
+// nothing, and a move is refused, in the language the Agent passes on.
+func TestRelocateMovesNothing(t *testing.T) {
+	t.Setenv("EASYSSL_LANG", "en")
+	var out strings.Builder
+	if err := ops.Relocate(ops.RelocateRequest{}, &out); err != nil || !strings.Contains(out.String(), "Nothing to change.") {
+		t.Fatalf("an empty request: %v, %q", err, out.String())
+	}
+	out.Reset()
+	req := ops.RelocateRequest{Moves: []plugincontract.Move{{From: "/etc/letsencrypt/live/a/fullchain.pem", To: "/etc/ssl/easyssl/a/certificate.pem"}}}
+	if err := ops.Relocate(req, &out); err == nil || !strings.Contains(out.String(), "generic-cli reads no configuration, so it has nothing to relocate.") {
+		t.Fatalf("a move: %v, %q", err, out.String())
+	}
+	t.Setenv("EASYSSL_LANG", "es")
+	out.Reset()
+	if err := ops.Relocate(req, &out); err == nil || !strings.Contains(out.String(), "no tiene nada que reubicar") {
+		t.Fatalf("a move in Spanish: %v, %q", err, out.String())
+	}
+}
