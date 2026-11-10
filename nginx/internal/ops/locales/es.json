@@ -35,5 +35,32 @@
   "nginx.problem.names_unreadable": "No pudieron leerse sus nombres: {error}.",
   "nginx.problem.key_hard_link": "Su clave `{key}` tiene {links} enlaces duros, y reemplazarla dejaría los demás nombres con el contenido anterior.",
   "nginx.problem.key_immutable": "Su clave `{key}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse.",
-  "nginx.problem.key_unsafe_path": "Su clave `{key}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}."
+  "nginx.problem.key_unsafe_path": "Su clave `{key}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}.",
+  "nginx.relocate.two_destinations": "No se cambió nada: `{from}` se mueve a la vez a `{a}` y a `{b}`.",
+  "nginx.relocate.bad_destination": "No se cambió nada: `{to}` no puede escribirse en la configuración: {reason}.",
+  "nginx.relocate.not_absolute": "no es una ruta absoluta",
+  "nginx.relocate.missing": "no existe ningún archivo ahí",
+  "nginx.relocate.not_regular": "no es un archivo regular",
+  "nginx.relocate.unquotable": "contiene una comilla, una barra invertida, un `$` o un carácter de control, que nginx lee como sintaxis",
+  "nginx.relocate.mismatch": "No se cambió nada: la configuración no nombra estas rutas donde dice la lista confirmada. Ejecuta el comando de nuevo para verla como está ahora.",
+  "nginx.relocate.mismatch.missing": "- confirmada, no encontrada: `{at}` `{setting} {value}`",
+  "nginx.relocate.mismatch.extra": "- encontrada, no confirmada: `{at}` `{setting} {value}`",
+  "nginx.relocate.nothing": "Nada que cambiar: ninguna línea de la configuración nombra estas rutas.",
+  "nginx.relocate.config_changed": "No se cambió nada: {problem} Recarga nginx cuando esos cambios estén listos y vuelve a ejecutar esto.",
+  "nginx.relocate.guard": "No se cambió nada, porque la recarga no llegaría a nginx (`pid {pid}`): {error}",
+  "nginx.relocate.not_found": "No se cambió nada: {error}. Ejecuta el comando de nuevo para ver la configuración como está ahora.",
+  "nginx.relocate.write_failed": "No se cambió nada, porque no pudo escribirse un archivo de configuración: {error}",
+  "nginx.relocate.changed": "`{at}`: `{from}` → `{to}`",
+  "nginx.relocate.test_failed": "El comando de prueba `{command}` {exit}, así que no se recargó nada.",
+  "nginx.relocate.reload_failed": "Falló la recarga de nginx (`pid {pid}`): {error}.",
+  "nginx.relocate.gone": "nginx ya no está en ejecución",
+  "nginx.relocate.emerg": "nginx no la aplicó: {line}",
+  "nginx.relocate.no_workers": "nginx no inició ningún proceso de trabajo nuevo en {seconds} segundos",
+  "nginx.relocate.reverted": "{what} La configuración original está de vuelta.",
+  "nginx.relocate.revert_failed": "{what} También falló volver a poner la configuración original: {error}",
+  "nginx.relocate.rereload_failed": "{what} La configuración original está de vuelta en disco, pero falló recargar nginx (`pid {pid}`) con ella: {error}",
+  "nginx.relocate.done": {
+    "one": "Se cambió {n} línea; nginx probó la configuración y la recargó.",
+    "other": "Se cambiaron {n} líneas; nginx probó la configuración y la recargó."
+  }
 }

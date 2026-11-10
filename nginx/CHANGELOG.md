@@ -15,6 +15,9 @@ Built against `easyssl-contract` 0.1.1.
   (`references`) and its own warnings, worded without its path. A certificate
   whose names cannot be read is no longer suggested. The `Locations` extra
   data is gone: the references replace it.
+- Adds `relocate`, which points the confirmed configuration lines at other
+  files, tests, reloads and checks that nginx applied the reload, putting every
+  file back on any failure.
 
 ## 0.1.0
 

@@ -24,6 +24,19 @@ or a Certificate not served puts the previous files back, the latter with
 nginx's `[emerg]` reason quoted and a second reload. A failed reload leaves the
 new files in place, and nginx keeps serving what it last loaded.
 
+It relocates by replacing, in each `ssl_certificate` and `ssl_certificate_key`
+line the request confirms, the path as written with the file its move names,
+keeping the quotes it had, and writing each configuration file back with
+everything but its content kept, through any symlink an `include` reached it
+by. It refuses, changing nothing, unless the lines its own reading of the
+configuration finds for the moves are exactly the confirmed ones, every
+destination is an absolute path to an existing file, and no instance's
+configuration was edited since it loaded it. It then runs each affected
+instance's test, reloads it, and waits for new workers, failing on an `[emerg]`
+in the error log. Any failure puts every file back, with its modification
+time, and reloads what was already reloaded. It speaks the language of
+`EASYSSL_LANG`, else of the locale.
+
 ## On the host
 
 - **Linux only.** Discovery reads `/proc`; elsewhere it reports a warning and no
@@ -38,7 +51,8 @@ new files in place, and nginx keeps serving what it last loaded.
   `-c` and `-g`), both as the master's user, since anyone can start a process
   with nginx's title; a process whose user cannot be read is skipped.
   Also `systemctl show` for the unit's reload command, and the
-  `test` and `reload` settings under `/bin/sh -e`. The configuration itself is
+  `test` and `reload` settings under `/bin/sh -e`, and, for `relocate`, each
+  affected instance's derived test and reload commands. The configuration itself is
   parsed in the Plugin, not by `nginx -T`.
 - **Connects** over TLS, after a reload, to every `listen ... ssl` address (`*`
   at `127.0.0.1`, `::` at `::1`), with the first exact `server_name` as SNI. It
