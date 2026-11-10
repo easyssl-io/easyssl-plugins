@@ -2,7 +2,7 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
-## Unreleased
+## 0.2.0
 
 Built against `easyssl-contract` 0.2.0.
 
@@ -18,6 +18,8 @@ Built against `easyssl-contract` 0.2.0.
 - Adds `relocate`, which points the confirmed configuration lines at other
   files, tests, reloads and checks that nginx applied the reload, putting every
   file back on any failure.
+- A Deployment into a directory a non-root user owns no longer fails with
+  `as uid <n>: ` and nothing after it.
 
 ## 0.1.0
 
