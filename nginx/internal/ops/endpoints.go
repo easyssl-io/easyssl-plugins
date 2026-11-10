@@ -367,31 +367,31 @@ func reachProblems(servers []nginxServer, path, refAt string) []l10n.Text {
 		if !tls {
 			if !s.inherited {
 				out = append(out, T("nginx.problem.no_tls",
-					"the server at `{at}` has no `listen` with `ssl`, so it never serves this certificate", "at", s.at))
+					"The server at `{at}` has no `listen` with `ssl`, so it never serves this certificate.", "at", s.at))
 			}
 			continue
 		}
 		served = true
 		if proxy {
 			out = append(out, T("nginx.problem.proxy_protocol",
-				"the server at `{at}` expects the PROXY protocol (`proxy_protocol`), so a local connection cannot check what it serves",
+				"The server at `{at}` expects the PROXY protocol (`proxy_protocol`), so a local connection cannot check what it serves.",
 				"at", s.at))
 		}
 		switch {
 		case ok || !other:
 		case by >= 0:
 			out = append(out, T("nginx.problem.shadowed",
-				"no client reaches the server at `{at}`: each of its names belongs to the server at `{by}` on the same address, and it is not that address's default",
+				"No client reaches the server at `{at}`: each of its names belongs to the server at `{by}` on the same address, and it is not that address's default.",
 				"at", s.at, "by", servers[by].at))
 		default:
 			out = append(out, T("nginx.problem.cannot_check",
-				"none of the `listen` directives of the server at `{at}` gives an address and a name this Plugin can connect to, so what it serves cannot be checked after a reload",
+				"None of the `listen` directives of the server at `{at}` gives an address and a name this Plugin can connect to, so what it serves cannot be checked after a reload.",
 				"at", s.at))
 		}
 	}
 	if !served && len(out) == 0 {
 		out = append(out, T("nginx.problem.unused_module_level",
-			"it is set at `{at}`, outside any server, but no server that inherits it listens with `ssl`, so nothing serves it",
+			"It is set at `{at}`, outside any server, but no server that inherits it listens with `ssl`, so nothing serves it.",
 			"at", refAt))
 	}
 	return out

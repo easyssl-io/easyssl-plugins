@@ -4,13 +4,17 @@ The easySSL Plugin for nginx.
 
 It finds the certificates every running nginx master serves (parsing its
 configuration with every `include`, pairing dual RSA and ECDSA certificates by
-algorithm) and suggests each as a Target, unless its file or its key's cannot be
-replaced safely, a place nginx serves it from cannot be checked over TLS (no
-`ssl` listen, `proxy_protocol`, a server whose names an earlier one claims), its
-configuration was edited since nginx loaded it, or the pid file
-`nginx -s reload` would read does not name the master, which is a discovery
-warning instead and a refusal at deploy. The test and reload commands repeat
-the master's own `-p`, `-c` and `-g`.
+algorithm) and reports each, with every `ssl_certificate` and
+`ssl_certificate_key` line that names its files as written. One is suggested as
+a Target unless something keeps it from being one, which is a warning of its
+own instead: its file or its key's cannot be replaced safely, more than one
+master reads it, its occurrences name different keys, its key is not a file,
+its names cannot be read, a place nginx serves it from cannot be checked over
+TLS (no `ssl` listen, `proxy_protocol`, a server whose names an earlier one
+claims), its configuration was edited since nginx loaded it, or the pid file
+`nginx -s reload` would read does not name the master. What makes a file
+unsafe to replace is also a refusal at deploy. The test and reload commands
+repeat the master's own `-p`, `-c` and `-g`.
 
 It deploys by writing the full chain and the key with everything but their
 content kept (owner, mode, ACLs and other extended attributes), running the

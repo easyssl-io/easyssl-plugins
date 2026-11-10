@@ -3,7 +3,9 @@ package ops
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -143,14 +145,19 @@ func keyTypeOf(t DiscoveredTarget) string {
 	return t.Certificate.KeyType
 }
 
-func extra(s DiscoveredTarget, label string) string {
-	for _, d := range s.ExtraData {
-		if d.Label["en"] == label {
-			return d.Value
+// refsOf is the references of one setting, as "file:line value".
+func refsOf(s DiscoveredTarget, setting string) []string {
+	var out []string
+	for _, r := range s.References {
+		if r.Setting == setting {
+			out = append(out, fmt.Sprintf("%s:%d %s", r.File, r.Line, r.Value))
 		}
 	}
-	return ""
+	return out
 }
+
+// suggested is a discovered Target with nothing against it.
+func suggested(s DiscoveredTarget) bool { return len(s.Warnings) == 0 }
 
 func TestDiscoverCases(t *testing.T) {
 	root, _ := hostTree(t)
@@ -167,11 +174,12 @@ func TestDiscoverCases(t *testing.T) {
 			{"snippet.crt", "etc/nginx/tls-snippets/snippet.conf"},
 		} {
 			s, ok := got[ssl+c.cert]
-			if !ok {
-				t.Fatalf("%s not reported", c.cert)
+			if !ok || !suggested(s) {
+				t.Fatalf("%s not suggested: %+v", c.cert, s)
 			}
-			if loc := extra(s, "Locations"); !strings.Contains(loc, "pid 100:"+root+"/"+c.file+":") {
-				t.Errorf("%s located at %q, want %s", c.cert, loc, c.file)
+			refs := refsOf(s, SettingCertificate)
+			if len(refs) != 1 || !strings.HasPrefix(refs[0], root+"/"+c.file+":") || !strings.HasSuffix(refs[0], " "+ssl+c.cert) {
+				t.Errorf("%s referenced at %q, want %s", c.cert, refs, c.file)
 			}
 		}
 	})
@@ -211,8 +219,23 @@ func TestDiscoverCases(t *testing.T) {
 		if !ok {
 			t.Fatal("many.crt not reported under its resolved path")
 		}
-		if n := strings.Count(extra(s, "Locations"), "\n") + 1; n != 5 {
-			t.Fatalf("many.crt has %d locations, want 5:\n%s", n, extra(s, "Locations"))
+		// Each reference keeps the spelling of its directive, which is what a
+		// move replaces.
+		var values []string
+		for _, r := range refsOf(s, SettingCertificate) {
+			values = append(values, r[strings.LastIndex(r, " ")+1:])
+		}
+		slices.Sort(values)
+		want := []string{"/ROOT/live/many.crt", "/ROOT/ssl//many.crt", "/ROOT/ssl/../ssl/./many.crt", "/ROOT/ssl/many-link.crt", "certs/many-rel.crt"}
+		for i := range want {
+			want[i] = strings.ReplaceAll(want[i], "/ROOT", root)
+		}
+		slices.Sort(want)
+		if !slices.Equal(values, want) {
+			t.Fatalf("many.crt references %q, want %q", values, want)
+		}
+		if k := refsOf(s, SettingKey); len(k) != 5 {
+			t.Fatalf("many.crt key references %q, want one per server", k)
 		}
 	})
 	t.Run("dual certificates pair by algorithm", func(t *testing.T) {
@@ -246,24 +269,44 @@ func TestDiscoverCases(t *testing.T) {
 			t.Error("both halves report one fingerprint")
 		}
 	})
-	t.Run("one certificate with two key files is a warning", func(t *testing.T) {
-		if _, ok := got[ssl+"twokeys.crt"]; ok {
-			t.Fatal("twokeys.crt suggested")
+	t.Run("one certificate with two key files is reported with a warning", func(t *testing.T) {
+		s, ok := got[ssl+"twokeys.crt"]
+		if !ok || suggested(s) || !hasWarning(s.Warnings, "twokeys-a.key", "twokeys-b.key", "same bytes") {
+			t.Fatalf("twokeys.crt: %+v, want reported with a key-conflict warning saying the bytes match", s)
 		}
-		if !hasWarning(warnings, "twokeys.crt", "same bytes") {
-			t.Fatalf("no key-conflict warning saying the bytes match: %q", warnings)
+		if k := refsOf(s, SettingKey); len(k) != 2 {
+			t.Fatalf("twokeys.crt key references %q, want both key files", k)
+		}
+		if len(warnings) != 0 {
+			t.Fatalf("top-level warnings %q, want none: every finding here is about one certificate", warnings)
 		}
 	})
-	t.Run("the locations label is translated, its value is not", func(t *testing.T) {
-		d := got[ssl+"confd.crt"].ExtraData[0]
-		if d.Label["en"] != "Locations" || d.Label["es"] != "Ubicaciones" {
-			t.Fatalf("label %q", d.Label)
+	t.Run("everything else is suggested, with no extra data", func(t *testing.T) {
+		for path, s := range got {
+			if !suggested(s) && path != ssl+"twokeys.crt" {
+				t.Errorf("%s not suggested: %q", path, s.Warnings)
+			}
+			if s.ExtraData == nil || len(s.ExtraData) != 0 {
+				t.Errorf("%s extra data %+v, want an empty list", path, s.ExtraData)
+			}
+		}
+	})
+	t.Run("a relative path is referenced as written", func(t *testing.T) {
+		refs := refsOf(got[root+"/etc/nginx/certs/relative.crt"], SettingCertificate)
+		if len(refs) != 1 || !strings.HasSuffix(refs[0], " certs/relative.crt") {
+			t.Fatalf("references %q", refs)
 		}
 	})
 	t.Run("settings carry the instance's commands", func(t *testing.T) {
 		s := got[ssl+"confd.crt"]
 		if s.Settings[SettingTest] != "/usr/sbin/nginx -t" || s.Settings[SettingReload] != "systemctl reload nginx.service" {
 			t.Fatalf("commands %v", s.Settings)
+		}
+	})
+	t.Run("the Agent accepts the answer", func(t *testing.T) {
+		d := DiscoverResponse{ContractVersion: plugincontractVersion, DiscoveredTargets: targets, Warnings: warnings}
+		if err := plugincontract.ValidateDiscover(declarations(), d); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("unchanged host, identical answer", func(t *testing.T) {
@@ -287,25 +330,31 @@ func TestSharedCertificateIsAWarning(t *testing.T) {
 	one, two := load(t, 100, root+"/one/nginx.conf"), load(t, 200, root+"/two/nginx.conf")
 	two.Reload = "systemctl reload nginx-second.service"
 	targets, warnings := analyze([]instance{two, one})
-	if len(targets) != 0 {
-		t.Fatalf("a certificate read by two masters was suggested: %+v", targets)
+	if len(targets) != 1 || suggested(targets[0]) || len(warnings) != 0 {
+		t.Fatalf("targets %+v, warnings %q: want the certificate read by two masters reported with a warning of its own", targets, warnings)
 	}
-	if !hasWarning(warnings, "read by 2 nginx instances", "`pid 200`, reloaded with `systemctl reload nginx-second.service`, at `") {
-		t.Fatalf("warnings %q", warnings)
+	tw := targets[0].Warnings
+	if !hasWarning(tw, "read by 2 nginx instances", "`pid 200`, reloaded with `systemctl reload nginx-second.service`, at `") {
+		t.Fatalf("warnings %q", tw)
+	}
+	if n := len(refsOf(targets[0], SettingCertificate)); n != 2 {
+		t.Fatalf("%d certificate references, want one per configuration", n)
 	}
 	// The same warning in Spanish: the sentence and the words inside each
 	// listed instance are translated, and what was found on the host is not.
-	es := warnings[0]["es"]
+	es := tw[0]["es"]
 	for _, want := range []string{
-		"lo leen 2 instancias de nginx",
+		"Lo leen 2 instancias de nginx",
 		"`pid 200`, que se recarga con `systemctl reload nginx-second.service`, en `" + root + "/two/nginx.conf:1`",
-		"`" + root + "/shared.crt`",
 	} {
 		if !strings.Contains(es, want) {
 			t.Errorf("the Spanish warning lacks %q: %s", want, es)
 		}
 	}
-	if es == warnings[0]["en"] || strings.Contains(es, "reloaded with") || strings.Contains(es, "{") {
+	if strings.Contains(tw[0]["en"], root+"/shared.crt") {
+		t.Errorf("the warning names the certificate it is shown beside: %s", tw[0]["en"])
+	}
+	if es == tw[0]["en"] || strings.Contains(es, "reloaded with") || strings.Contains(es, "{") {
 		t.Errorf("the Spanish warning is not wholly Spanish: %s", es)
 	}
 }
@@ -401,10 +450,91 @@ func equalTargets(a, b []DiscoveredTarget) bool {
 	}
 	for i := range a {
 		if a[i].Settings[SettingCertificate] != b[i].Settings[SettingCertificate] ||
-			extra(a[i], "Locations") != extra(b[i], "Locations") ||
+			!slices.Equal(a[i].References, b[i].References) ||
+			!slices.EqualFunc(a[i].Warnings, b[i].Warnings, maps.Equal[l10n.Text, l10n.Text]) ||
 			!slices.Equal(domainsOf(a[i]), domainsOf(b[i])) || keyTypeOf(a[i]) != keyTypeOf(b[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+// A certificate nginx serves but this Plugin cannot read is reported, and
+// not suggested: a Certificate requested for it would have no names.
+func TestUnreadableCertificateIsNotSuggested(t *testing.T) {
+	m := issue(t, "ec", "ok.example.test")
+	root := tree(t, map[string]string{
+		"nginx.conf": `http { server { listen 9001 ssl; ssl_certificate /ROOT/junk.crt; ssl_certificate_key /ROOT/ok.key; } }`,
+		"junk.crt":   "not a certificate",
+		"ok.key":     m.key,
+	})
+	replaceRoot(t, root, "nginx.conf")
+	targets, warnings := analyze([]instance{load(t, 100, root+"/nginx.conf")})
+	if len(targets) != 1 || len(warnings) != 0 || !hasWarning(targets[0].Warnings, "no PEM certificate") || targets[0].Certificate != nil {
+		t.Fatalf("targets %+v, warnings %q", targets, warnings)
+	}
+	if es := targets[0].Warnings[0]["es"]; !strings.Contains(es, "certificado PEM") {
+		t.Fatalf("Spanish %q", es)
+	}
+}
+
+// An answer past the contract's bound keeps the suggested Targets and says
+// how many were left out, so the Agent does not refuse it whole.
+func TestCappedKeepsTheSuggestedFirst(t *testing.T) {
+	var targets []DiscoveredTarget
+	for i := range plugincontract.MaxDiscoveredTargets + 5 {
+		tg := DiscoveredTarget{Settings: map[string]string{SettingCertificate: fmt.Sprintf("/c/%03d.crt", i)}}
+		if i%2 == 0 {
+			tg.Warnings = []l10n.Text{literal("x")}
+		}
+		targets = append(targets, tg)
+	}
+	got, warnings := capped(targets, []l10n.Text{})
+	if len(got) != plugincontract.MaxDiscoveredTargets || !hasWarning(warnings, "5 more certificates") {
+		t.Fatalf("%d targets, warnings %q", len(got), warnings)
+	}
+	n := 0
+	for _, tg := range got {
+		if suggested(tg) {
+			n++
+		}
+	}
+	if n != (plugincontract.MaxDiscoveredTargets+5)/2 {
+		t.Fatalf("%d suggested kept, want every one", n)
+	}
+	if !slices.IsSortedFunc(got, func(a, b DiscoveredTarget) int {
+		return strings.Compare(a.Settings[SettingCertificate], b.Settings[SettingCertificate])
+	}) {
+		t.Fatal("the kept Targets are not in path order")
+	}
+}
+
+// What keeps a file from being replaced is a warning of the certificate's
+// own, naming the key when it is the key and nothing when it is the
+// certificate file, which the reader sees beside it.
+func TestPathProblemsAreTheCertificatesWarnings(t *testing.T) {
+	a, b := issue(t, "ec", "a.example.test"), issue(t, "ec", "b.example.test")
+	root := tree(t, map[string]string{
+		"nginx.conf": `http {
+  server { listen 9001 ssl; ssl_certificate /ROOT/a.crt; ssl_certificate_key /ROOT/a.key; }
+  server { listen 9002 ssl; ssl_certificate /ROOT/b.crt; ssl_certificate_key /ROOT/b.key; } }`,
+		"a.crt": a.cert, "a.key": a.key, "b.crt": b.cert, "b.key": b.key,
+	})
+	replaceRoot(t, root, "nginx.conf")
+	for _, l := range [][2]string{{"a.crt", "a-copy.crt"}, {"b.key", "b-copy.key"}} {
+		if err := os.Link(root+"/"+l[0], root+"/"+l[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	targets, warnings := analyze([]instance{load(t, 100, root+"/nginx.conf")})
+	got := byCert(targets)
+	if len(targets) != 2 || len(warnings) != 0 {
+		t.Fatalf("targets %+v, warnings %q", targets, warnings)
+	}
+	if w := got[root+"/a.crt"].Warnings; len(w) != 1 || w[0]["en"] != "The certificate file has 2 hard links, and replacing it would leave the other names with the previous content." {
+		t.Errorf("a.crt warnings %q", w)
+	}
+	if w := got[root+"/b.crt"].Warnings; len(w) != 1 || !hasWarning(w, "Its key `"+root+"/b.key` has 2 hard links") {
+		t.Errorf("b.crt warnings %q", w)
+	}
 }
