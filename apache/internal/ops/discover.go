@@ -374,10 +374,14 @@ type survey struct {
 	infos    map[string]certInfo
 	readErr  map[string]error
 	cfgs     map[*master]*serverCfg
+	// changed is each master's configuration files edited since it loaded
+	// them.
+	changed map[*master][]string
 }
 
 func surveyOf(masters []*master, read configReader) *survey {
-	sv := &survey{problems: map[string][]msg{}, infos: map[string]certInfo{}, readErr: map[string]error{}, cfgs: map[*master]*serverCfg{}}
+	sv := &survey{problems: map[string][]msg{}, infos: map[string]certInfo{}, readErr: map[string]error{},
+		cfgs: map[*master]*serverCfg{}, changed: map[*master][]string{}}
 	byPath := map[string]*certFile{}
 	for _, m := range masters {
 		if m.GateErr != nil {
@@ -397,7 +401,7 @@ func surveyOf(masters []*master, read configReader) *survey {
 			sv.warnings = append(sv.warnings, textOf(err))
 			continue
 		}
-		sv.cfgs[m] = s
+		sv.cfgs[m], sv.changed[m] = s, changed
 		locs, warnings := locationsOf(m, s, changed)
 		sv.warnings = append(sv.warnings, warnings...)
 		for _, l := range locs {

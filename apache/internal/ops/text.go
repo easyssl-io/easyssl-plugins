@@ -3,6 +3,7 @@ package ops
 import (
 	"embed"
 	"errors"
+	"os"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
 )
@@ -57,4 +58,19 @@ func textOf(err error) l10n.Text {
 // prose: a directive name, or what a program said in its own words.
 func literal(s string) l10n.Text {
 	return l10n.Text{l10n.English: s}
+}
+
+// hostLanguage is the language relocate speaks to the person running the
+// Agent's command: EASYSSL_LANG when it names a supported language, which is
+// how the Agent passes on the language it speaks, else the locale's, else
+// English. Unlike discovery's answer, relocate's output is read once, on the
+// host, by that person.
+func hostLanguage() string {
+	if l, ok := l10n.Base(os.Getenv("EASYSSL_LANG")); ok {
+		return l
+	}
+	if l, ok := l10n.FromLocale(os.Getenv); ok {
+		return l
+	}
+	return l10n.English
 }

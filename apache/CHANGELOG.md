@@ -16,6 +16,11 @@ Built against `easyssl-contract` 0.1.1.
   worded without its path: a name or key type collision is now a warning of
   each certificate in it. A certificate whose names cannot be read is no longer
   suggested. The `Locations` extra data is gone: the references replace it.
+- Reads a single-quoted argument in the configuration as httpd does: a key
+  file written `'/path'` was read as a path with quotes in it.
+- Adds `relocate`, which points the confirmed configuration lines at other
+  files, tests, reloads and checks that the master survived, putting every
+  file back on any failure.
 
 ## 0.1.0
 
