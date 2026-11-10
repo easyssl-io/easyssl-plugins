@@ -70,27 +70,33 @@ var (
 	lineRe   = regexp.MustCompile(`^\s*#\s+(\d+):\s*$`)
 )
 
-// tokens splits a directive line, keeping quoted arguments whole.
+// tokens splits a directive line the way httpd reads its arguments
+// (ap_getword_conf): a word starting with a double or a single quote runs to
+// the next unescaped quote of the same kind, which is dropped with a
+// backslash before it, and any other word to the next blank. mod_info's dump
+// prints each argument as the configuration wrote it, so both quotes reach
+// here.
 func tokens(s string) []string {
 	var out []string
-	var cur strings.Builder
-	quoted, have := false, false
-	for _, r := range s {
-		switch {
-		case r == '"':
-			quoted, have = !quoted, true
-		case !quoted && (r == ' ' || r == '\t'):
-			if have {
-				out = append(out, cur.String())
-				cur.Reset()
-				have = false
-			}
-		default:
-			cur.WriteRune(r)
-			have = true
+	for i := 0; i < len(s); {
+		if s[i] == ' ' || s[i] == '\t' {
+			i++
+			continue
 		}
-	}
-	if have {
+		var cur strings.Builder
+		if q := s[i]; q == '"' || q == '\'' {
+			for i++; i < len(s) && s[i] != q; i++ {
+				if s[i] == '\\' && i+1 < len(s) && s[i+1] == q {
+					i++
+				}
+				cur.WriteByte(s[i])
+			}
+			i++ // the closing quote
+		} else {
+			for ; i < len(s) && s[i] != ' ' && s[i] != '\t'; i++ {
+				cur.WriteByte(s[i])
+			}
+		}
 		out = append(out, cur.String())
 	}
 	return out

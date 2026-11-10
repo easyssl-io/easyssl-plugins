@@ -109,3 +109,21 @@ Listen 9442
 		t.Fatalf("b.crt: %+v", targets[0])
 	}
 }
+
+// httpd's dump prints arguments as written, so both quotes are read the way
+// httpd reads them.
+func TestTokens(t *testing.T) {
+	for in, want := range map[string]string{
+		`SSLCertificateFile /etc/a.crt`:           "SSLCertificateFile|/etc/a.crt",
+		`SSLCertificateKeyFile '/etc/my key.pem'`: "SSLCertificateKeyFile|/etc/my key.pem",
+		`SSLCertificateFile "/etc/a.crt"`:         "SSLCertificateFile|/etc/a.crt",
+		`VirtualHost *:443 [::1]:443`:             "VirtualHost|*:443|[::1]:443",
+		`Header set X "a \"b\" c"`:                `Header|set|X|a "b" c`,
+		"SSLEngine\ton":                           "SSLEngine|on",
+		`ServerAlias it's`:                        "ServerAlias|it's",
+	} {
+		if got := strings.Join(tokens(in), "|"); got != want {
+			t.Errorf("tokens(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
