@@ -74,10 +74,16 @@ To add or change a text:
 - `TestCatalog` in each `internal/ops` fails on a message with no translation,
   a translation no message uses, and placeholders that differ.
 
+`relocate` is the exception to answering in every language: its output is read
+once, on the host, by the person running the Agent's command, so it is printed
+in one language, the one `EASYSSL_LANG` names, else the locale's, else
+English, through the same catalog (`p.T` on `catalog.In(hostLanguage())`).
+
 Not translated, and left exactly as produced: what `deploy` prints while it
-runs, a program's or a parser's own error text, setting keys, values and
-defaults, paths, commands, and a label that is itself a literal, such as the
-directive name `ssl_certificate`, which is English alone.
+runs, the commands `relocate` runs and their output, a program's or a parser's
+own error text, setting keys, values and defaults, paths, commands, and a
+label that is itself a literal, such as the directive name `ssl_certificate`,
+which is English alone.
 
 ## Dependencies
 

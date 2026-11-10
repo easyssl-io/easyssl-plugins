@@ -35,6 +35,9 @@ one file per language, embedded in the executable.
 
 What a plugin found or ran is not translated: paths, commands, setting keys
 and values, a program's own error text, and everything a deployment prints.
+`relocate`, which points a server's configuration at other files for the
+person running the Agent's `migrate` command, speaks that person's language:
+the one `EASYSSL_LANG` names, else the locale's.
 
 ## Build
 
