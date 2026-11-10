@@ -64,7 +64,9 @@ cd generic-cli && GOTOOLCHAIN=go$(awk '/^go /{print $2}' go.mod) GOWORK=off CGO_
 Code more than one plugin needs is the `internal` module beside them:
 `hostfile` replaces a certificate or key file so that only its content changes,
 `pemfile` reads certificates and keys, `tlscheck` asks a server which
-certificate it presents, and `buildversion` holds the version a release stamps. A plugin reaches it through a relative `replace`, so
+certificate it presents, `relocation` holds what pointing a configuration at
+other files needs whatever its syntax, and `buildversion` holds the version a
+release stamps. A plugin reaches it through a relative `replace`, so
 sharing costs no cross-repository pin, and its path keeps it importable by the
 plugins here alone.
 
