@@ -40,7 +40,6 @@
   "apache.problem.encrypted_key": "su clave `{key}` está protegida con una frase de contraseña, y un Despliegue no puede conservar esa protección",
   "apache.problem.unreadable": "`pid {pid}` se ejecuta como uid {uid} y no puede leer `{path}`, así que su próxima recarga o reinicio falla",
   "apache.problem.in_collision": "también forma parte de una colisión que se informa aparte",
-  "apache.problem.acme_managed": "`{path}` está bajo `{dir}`, que gestiona otro cliente ACME, y ambos se sobrescribirían",
   "apache.problem.hard_link": "`{path}` tiene {links} enlaces duros, y reemplazarlo dejaría los demás nombres con el contenido anterior",
   "apache.problem.immutable": "`{path}` es inmutable o de solo añadir (`chattr +i` o `+a`), así que no puede reemplazarse",
   "apache.problem.unsafe_path": "`{path}` no puede reemplazarse de forma segura, porque un usuario distinto de su propietario podría cambiar adónde lleva su ruta: {reason}",

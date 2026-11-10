@@ -218,9 +218,10 @@ func TestPairingGuard(t *testing.T) {
 	}
 }
 
-// A certificate under another ACME client's directory is a warning, not a
-// suggestion, and a Deployment to it writes nothing.
-func TestACMEManagedPathIsNotSuggested(t *testing.T) {
+// A certificate under another ACME client's directory is reported like any
+// other: which clients manage which files is the Agent's knowledge, and the
+// Agent warns and refuses on it before this Plugin runs.
+func TestACMEManagedPathIsLeftToTheAgent(t *testing.T) {
 	m := issue(t, "ec", "certbot.example.test")
 	root := tree(t, map[string]string{
 		"etc/letsencrypt/archive/x/cert1.pem":    m.cert,
@@ -234,19 +235,15 @@ func TestACMEManagedPathIsNotSuggested(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 0 {
-		t.Fatalf("suggested %v", targets)
+	if len(targets) != 1 || targets[0].Settings[SettingCertificate] != root+"/etc/letsencrypt/archive/x/cert1.pem" || len(warnings) != 0 {
+		t.Fatalf("targets %v, warnings %q, want cert1.pem suggested with no warning", targets, warnings)
 	}
-	if !hasWarning(warnings, "cert1.pem", "another ACME client") {
-		t.Fatalf("no warning about the ACME client: %q", warnings)
+	n := issue(t, "ec", "a.example.test")
+	if out, err := deployTo(t, root, n, "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem"); err != nil {
+		t.Fatalf("deploy: %v\n%s", err, out)
 	}
-	before := content(t, root+"/etc/letsencrypt/archive/x/cert1.pem")
-	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem")
-	if err == nil || !strings.Contains(err.Error(), "nothing was written") {
-		t.Fatalf("deploy = %v, want a refusal", err)
-	}
-	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != before {
-		t.Fatal("the certificate was written")
+	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != n.cert {
+		t.Fatal("the certificate was not written")
 	}
 }
 

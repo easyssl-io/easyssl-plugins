@@ -163,10 +163,24 @@ func TestWriterFor(t *testing.T) {
 	}
 }
 
-func TestProblemsACME(t *testing.T) {
-	ps := Problems("/etc/letsencrypt/archive/x/cert1.pem")
-	if len(ps) == 0 || ps[0].Kind != ACMEManaged || ps[0].Dir != "etc/letsencrypt" {
-		t.Errorf("Problems = %+v, want the certbot directory", ps)
+// A file under another ACME client's directory is no problem of a Plugin's:
+// the Agent refuses those paths itself.
+func TestProblemsLeaveACMEDirectoriesToTheAgent(t *testing.T) {
+	d := ownedDir(t)
+	p := filepath.Join(d, "etc", "letsencrypt", "archive", "x", "cert1.pem")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for dir := filepath.Dir(p); dir != d; dir = filepath.Dir(dir) {
+		if err := os.Chmod(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(p, []byte("c"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ps := Problems(p); len(ps) != 0 {
+		t.Errorf("Problems = %+v, want none", ps)
 	}
 }
 

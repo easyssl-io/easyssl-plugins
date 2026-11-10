@@ -17,10 +17,6 @@ func pathProblems(path string) []l10n.Text {
 	var out []l10n.Text
 	for _, pr := range hostfile.Problems(path) {
 		switch pr.Kind {
-		case hostfile.ACMEManaged:
-			out = append(out, T("nginx.problem.acme_managed",
-				"`{path}` is under `{dir}`, which another ACME client manages, and the two would overwrite each other",
-				"path", pr.Path, "dir", pr.Dir))
 		case hostfile.HardLink:
 			out = append(out, T("nginx.problem.hard_link",
 				"`{path}` has {links} hard links, and replacing it would leave the other names with the previous content",

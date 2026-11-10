@@ -2,6 +2,15 @@
 
 Every release of the `apache` Plugin, newest first, each tagged `apache/v<version>`.
 
+## Unreleased
+
+Built against `easyssl-contract` 0.1.1.
+
+- A certificate under another ACME client's directory (certbot's
+  `/etc/letsencrypt`, acme.sh, dehydrated, lego) is no longer refused by this
+  Plugin, in discovery or in a Deployment: the Agent knows those clients,
+  warns about such a certificate and refuses to deploy there itself.
+
 ## 0.1.0
 
 The first release, built against `easyssl-contract` 0.1.0.

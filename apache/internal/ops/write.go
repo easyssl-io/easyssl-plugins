@@ -12,12 +12,6 @@ func pathProblems(path string) []msg {
 	var out []msg
 	for _, pr := range hostfile.Problems(path) {
 		switch pr.Kind {
-		case hostfile.ACMEManaged:
-			out = append(out, func(p l10n.Printer) string {
-				return p.T("apache.problem.acme_managed",
-					"`{path}` is under `{dir}`, which another ACME client manages, and the two would overwrite each other",
-					"path", pr.Path, "dir", pr.Dir)
-			})
 		case hostfile.HardLink:
 			out = append(out, func(p l10n.Printer) string {
 				return p.T("apache.problem.hard_link",
