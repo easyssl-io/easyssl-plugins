@@ -133,7 +133,7 @@ stream {
 	for cert, want := range map[string][]string{
 		"a.crt":        nil,
 		"h3.crt":       nil, // QUIC beside a TCP listen checked there
-		"shadowed.crt": {"no client reaches the server at `" + conf + ":4`", "belongs to the server at `" + conf + ":3`"},
+		"shadowed.crt": {"No client reaches the server at `" + conf + ":4`", "belongs to the server at `" + conf + ":3`"},
 		"nameless.crt": {"`" + conf + ":5`", "cannot be checked"},
 		"plain.crt":    {"`" + conf + ":6` has no `listen` with `ssl`"},
 		"p.crt":        {"PROXY protocol"}, // even though 9444 could be checked
@@ -167,11 +167,12 @@ func TestUncheckableIsNotSuggested(t *testing.T) {
 	if err := writeFile(conf, strings.ReplaceAll(content(t, conf), "/ROOT", root)); err != nil {
 		t.Fatal(err)
 	}
-	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 1 || targets[0].Settings[SettingCertificate] != root+"/ok.crt" {
-		t.Fatalf("targets %v, want ok.crt alone", targets)
+	targets, _ := analyze([]instance{load(t, 100, conf)})
+	got := byCert(targets)
+	if len(targets) != 2 || !suggested(got[root+"/ok.crt"]) {
+		t.Fatalf("targets %v, want ok.crt suggested beside p.crt", targets)
 	}
-	if !hasWarning(warnings, "p.crt` is not suggested", "PROXY protocol") {
-		t.Fatalf("warnings %q", warnings)
+	if !hasWarning(got[root+"/p.crt"].Warnings, "PROXY protocol") {
+		t.Fatalf("p.crt warnings %q", got[root+"/p.crt"].Warnings)
 	}
 }

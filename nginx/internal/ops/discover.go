@@ -15,6 +15,7 @@ import (
 	crossplane "github.com/nginxinc/nginx-go-crossplane"
 
 	"github.com/easyssl-io/easyssl-contract/l10n"
+	"github.com/easyssl-io/easyssl-contract/plugincontract"
 	"github.com/easyssl-io/easyssl-contract/wire"
 	"github.com/easyssl-io/easyssl-plugins/internal/buildversion"
 	"github.com/easyssl-io/easyssl-plugins/internal/hostfile"
@@ -116,8 +117,7 @@ type CertRef struct {
 type Certificate struct {
 	Path string
 	// Key is the key of the first occurrence. A certificate whose occurrences
-	// disagree about the key is not reported at all but warned about, since
-	// reporting one key would be true of only some of its uses.
+	// disagree about the key carries a warning saying so (warnKeyConflict).
 	Key string
 
 	// SANs are the leaf's subject alternative names in the order the
@@ -135,8 +135,12 @@ type Certificate struct {
 }
 
 // analyze turns the instances into discovered Targets and warnings. Every
-// discovered Target belongs to exactly one master, because a file read by two
-// leaves the list (warnShared), so "its reload" is well defined.
+// certificate file the configurations name is a discovered Target, with the
+// places that name it as references; what keeps one from being suggested is
+// its own warnings, worded without its path, which the reader sees beside
+// them, so the same situation reads the same for every certificate in it. The
+// top-level warnings are left for what is not one certificate: an instance
+// whose configuration could not be read, and a value that names no file.
 //
 // A warning is one whole message per language. What was found on the host
 // (a path, a pid, a command, a location) and what nginx or a parser said in
@@ -144,11 +148,9 @@ type Certificate struct {
 func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	sort.Slice(found, func(i, j int) bool { return found[i].PID < found[j].PID })
 	targets, warnings := []DiscoveredTarget{}, []l10n.Text{}
-	reload, test := map[int]string{}, map[int]string{}
 	masters := map[int]*instance{}
 	var refs []CertRef
 	for i, in := range found {
-		reload[in.PID], test[in.PID] = in.Reload, in.Test
 		masters[in.PID] = &found[i]
 		if in.CertsErr != nil {
 			warnings = append(warnings, warnInstance(in))
@@ -161,27 +163,29 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 	}
 	refs, notFiles := filesOnly(refs)
 	warnings = append(warnings, notFiles...)
-	grouped, conflicts := group(refs)
-	for _, c := range grouped {
-		if w := warnShared(c, found); len(w) != 0 {
-			warnings = append(warnings, w)
-			continue
-		}
-		if probs := problemsOf(c, masters[c.Refs[0].PID]); len(probs) > 0 {
-			warnings = append(warnings, notSuggested(c.Path, probs))
-			continue
-		}
+	for _, c := range group(refs) {
+		// The commands of the first master that loads it: one that more
+		// read is warned about, and a reader needs some value to see.
+		in := masters[c.Refs[0].PID]
 		t := DiscoveredTarget{
 			Settings: map[string]string{
 				SettingCertificate: c.Path,
 				SettingKey:         c.Key,
-				SettingTest:        test[c.Refs[0].PID],
-				SettingReload:      reload[c.Refs[0].PID],
+				SettingTest:        in.Test,
+				SettingReload:      in.Reload,
 			},
+			ExtraData:  []ExtraDatum{},
+			References: referencesOf(c.Refs),
+			Warnings:   warningsOf(c, found, in),
+		}
+		if len(t.References) > plugincontract.MaxReferences {
+			// The answer would be refused whole; a move of this certificate is
+			// refused instead, since its confirmed references would not be
+			// all of them.
+			t.References = t.References[:plugincontract.MaxReferences]
 		}
 		// What the file itself says, absent when nothing could be read from
-		// it: the installation point is reported regardless, since it works
-		// whatever the parser thinks of the file.
+		// it.
 		if c.SANErr == nil || c.KeyType != "" || c.SHA256 != "" {
 			domains := c.SANs
 			if domains == nil {
@@ -189,26 +193,108 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 			}
 			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType, SHA256: c.SHA256}
 		}
-		if errors.Is(c.SANErr, pemfile.ErrNoCertificate) {
-			warnings = append(warnings, T("nginx.warning.no_certificate",
-				"`{path}`: its names could not be read, so none are reported: the file holds no PEM certificate",
-				"path", c.Path))
-		} else if c.SANErr != nil {
-			warnings = append(warnings, T("nginx.warning.names_unreadable",
-				"`{path}`: its names could not be read, so none are reported: {error}",
-				"path", c.Path, "error", c.SANErr))
-		}
-		var lines []string
-		for _, r := range c.Refs {
-			lines = append(lines, fmt.Sprintf("pid %d:%s:%d", r.PID, r.File, r.Line))
-		}
-		t.ExtraData = []ExtraDatum{{Label: T("nginx.extra.locations", "Locations"), Value: strings.Join(lines, "\n")}}
 		targets = append(targets, t)
 	}
-	for _, c := range conflicts {
-		warnings = append(warnings, warnKeyConflict(c))
+	return capped(targets, warnings)
+}
+
+// referencesOf is every directive the occurrences name a file with, once each:
+// the ssl_certificate and, when it names a file, the ssl_certificate_key nginx
+// pairs with it. Sorted by file and line, so two runs compare equal. relocate
+// finds the references a move changes with this too, so what it changes is
+// what discovery reported.
+func referencesOf(refs []CertRef) []plugincontract.Reference {
+	seen := map[plugincontract.Reference]bool{}
+	out := []plugincontract.Reference{}
+	add := func(r plugincontract.Reference) {
+		if !seen[r] {
+			seen[r] = true
+			out = append(out, r)
+		}
 	}
-	return targets, warnings
+	for _, r := range refs {
+		add(plugincontract.Reference{Setting: SettingCertificate, File: r.File, Line: r.Line, Value: r.Value})
+		if r.KeyValue != "" && !notAFile(r.KeyValue, true) {
+			add(plugincontract.Reference{Setting: SettingKey, File: r.File, Line: r.KeyLine, Value: r.KeyValue})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.File != b.File {
+			return a.File < b.File
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		if a.Setting != b.Setting {
+			return a.Setting < b.Setting
+		}
+		return a.Value < b.Value
+	})
+	return out
+}
+
+// warningsOf is everything that keeps a certificate from being suggested,
+// each finding a warning of its own, once.
+func warningsOf(c Certificate, found []instance, in *instance) []l10n.Text {
+	var out []l10n.Text
+	if w := warnShared(c, found); len(w) != 0 {
+		out = append(out, w)
+	}
+	for _, r := range c.Refs[1:] {
+		if r.KeyResolved != c.Key {
+			out = append(out, warnKeyConflict(c))
+			break
+		}
+	}
+	for _, r := range c.Refs {
+		if r.KeyValue != "" && notAFile(r.KeyValue, true) {
+			out = append(out, T("nginx.problem.key_not_a_file",
+				"Its key `{value}` (`{at}`) is not the name of one file (it holds a variable, or starts with `data:`, `engine:` or `store:`), so a Deployment has no file to write it to.",
+				"value", shorten(r.KeyValue), "at", fmt.Sprintf("pid %d:%s:%d", r.PID, r.File, r.KeyLine)))
+		}
+	}
+	if errors.Is(c.SANErr, pemfile.ErrNoCertificate) {
+		out = append(out, T("nginx.problem.no_certificate",
+			"It holds no PEM certificate, so its names cannot be read."))
+	} else if c.SANErr != nil {
+		out = append(out, T("nginx.problem.names_unreadable",
+			"Its names could not be read: {error}.", "error", c.SANErr))
+	}
+	out = append(out, problemsOf(c, in)...)
+	return dedupe(out)
+}
+
+// dedupe drops a warning equal to an earlier one, which two occurrences of
+// one finding produce.
+func dedupe(in []l10n.Text) []l10n.Text {
+	out := []l10n.Text{}
+	seen := map[string]bool{}
+	for _, w := range in {
+		if k := w.In(l10n.English); !seen[k] {
+			seen[k] = true
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// capped keeps an answer within the contract's bound on discovered Targets,
+// which the Agent would otherwise refuse whole: the suggested ones first, then
+// the warned, and a warning counting what was left out.
+func capped(targets []DiscoveredTarget, warnings []l10n.Text) ([]DiscoveredTarget, []l10n.Text) {
+	if len(targets) <= plugincontract.MaxDiscoveredTargets {
+		return targets, warnings
+	}
+	sort.SliceStable(targets, func(i, j int) bool { return len(targets[i].Warnings) == 0 && len(targets[j].Warnings) > 0 })
+	left := len(targets) - plugincontract.MaxDiscoveredTargets
+	targets = targets[:plugincontract.MaxDiscoveredTargets]
+	sort.SliceStable(targets, func(i, j int) bool {
+		return targets[i].Settings[SettingCertificate] < targets[j].Settings[SettingCertificate]
+	})
+	return targets, append(warnings, T("nginx.warning.too_many",
+		"{count} more certificates were found and are not reported, because one answer reports at most {max}.",
+		"count", left, "max", plugincontract.MaxDiscoveredTargets))
 }
 
 func or(s, alt string) string {
@@ -243,12 +329,12 @@ func warnInstance(in instance) l10n.Text {
 }
 
 // warnShared describes a certificate file read by more than one master, or
-// returns no text when exactly one reads it. Such a file is kept out of the
-// list: a renewal that writes it is complete only once every master that reads
-// it has been reloaded, and there is no single reload command for that. The
-// warning recommends the structural way out.
+// returns no text when exactly one reads it. Such a file is not suggested: a
+// renewal that writes it is complete only once every master that reads it has
+// been reloaded, and there is no single reload command for that. The warning
+// recommends the structural way out.
 func warnShared(c Certificate, found []instance) l10n.Text {
-	// Instances in the order the locations list them, each once, with the
+	// Instances in the order the references list them, each once, with the
 	// places in each that name the file.
 	var pids []int
 	where := map[int][]string{}
@@ -275,12 +361,11 @@ func warnShared(c Certificate, found []instance) l10n.Text {
 				"pid", pid, "reload", reload[pid], "locations", strings.Join(where[pid], ", ")))
 		}
 		return p.T("nginx.warning.shared_certificate",
-			"`{path}` is read by {count} nginx instances ({instances}) and is not listed. A renewal "+
-				"written there takes effect only in the instances reloaded afterwards, and the rest keep "+
-				"serving the previous certificate from memory while the file on disk no longer shows it. "+
-				"Give each instance its own copy of the certificate and key under a path only it reads, "+
-				"so that each can be renewed and reloaded on its own.",
-			"path", c.Path, "count", len(pids), "instances", strings.Join(parts, "; "))
+			"It is read by {count} nginx instances ({instances}). A renewal written there takes effect "+
+				"only in the instances reloaded afterwards, and the rest keep serving the previous certificate "+
+				"from memory while the file on disk no longer shows it. Give each instance its own copy of the "+
+				"certificate and key under a path only it reads, so that each can be renewed and reloaded on its own.",
+			"count", len(pids), "instances", strings.Join(parts, "; "))
 	})
 }
 
@@ -310,17 +395,17 @@ func warnKeyConflict(c Certificate) l10n.Text {
 		// which advice applies changes what the reader is being told.
 		if same {
 			return p.T("nginx.warning.key_conflict.same_bytes",
-				"`{path}` is used with {count} different key files: {keys}. "+
+				"It is used with {count} different key files: {keys}. "+
 					"All of these keys hold the same bytes, so point every one of them at a single "+
 					"file: a renewal that writes only one leaves the others stale, and the next reload "+
 					"then fails on a key that no longer matches its certificate.",
-				"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
+				"count", len(order), "keys", strings.Join(parts, "; "))
 		}
 		return p.T("nginx.warning.key_conflict.different",
-			"`{path}` is used with {count} different key files: {keys}. "+
+			"It is used with {count} different key files: {keys}. "+
 				"The keys differ, so at least one of these servers is not running the configuration "+
 				"on disk: nginx refuses a certificate and key that do not match.",
-			"path", c.Path, "count", len(order), "keys", strings.Join(parts, "; "))
+			"count", len(order), "keys", strings.Join(parts, "; "))
 	})
 }
 
@@ -555,14 +640,15 @@ func resolve(value, config string) (string, error) {
 
 // group collects occurrences by the file they resolve to, so a certificate
 // named several ways is reported once with every place it is used. Sorted by
-// path, and by file and line within each, so two runs of the tool can be
-// compared.
-func group(refs []CertRef) (kept, conflicts []Certificate) {
+// path, and by master, file and line within each, so two runs of the tool can
+// be compared. A certificate whose occurrences name different keys keeps the
+// first one's key, and a warning (warnKeyConflict) says it is not the only.
+func group(refs []CertRef) []Certificate {
 	byPath := map[string][]CertRef{}
 	for _, r := range refs {
 		byPath[r.Resolved] = append(byPath[r.Resolved], r)
 	}
-	kept = make([]Certificate, 0, len(byPath))
+	out := make([]Certificate, 0, len(byPath))
 	for path, rs := range byPath {
 		sort.Slice(rs, func(i, j int) bool {
 			if rs[i].PID != rs[j].PID {
@@ -574,18 +660,6 @@ func group(refs []CertRef) (kept, conflicts []Certificate) {
 			return rs[i].Line < rs[j].Line
 		})
 		c := Certificate{Path: path, Key: rs[0].KeyResolved, Refs: rs}
-		conflict := false
-		for _, r := range rs[1:] {
-			if r.KeyResolved != c.Key {
-				conflict = true
-			}
-		}
-		if conflict {
-			// Not listed at all: reporting one of the keys would state
-			// something true of only some of this certificate's uses.
-			conflicts = append(conflicts, c)
-			continue
-		}
 		c.SANs, c.SANErr = sans(path)
 		if der, err := leafDER(path); err == nil {
 			sum := sha256.Sum256(der)
@@ -594,11 +668,10 @@ func group(refs []CertRef) (kept, conflicts []Certificate) {
 				c.KeyType = wire.KeyTypeOf(leaf.PublicKey)
 			}
 		}
-		kept = append(kept, c)
+		out = append(out, c)
 	}
-	sort.Slice(kept, func(i, j int) bool { return kept[i].Path < kept[j].Path })
-	sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })
-	return kept, conflicts
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
 }
 
 // sans reads a certificate file and returns the subject alternative names of
@@ -642,9 +715,6 @@ func leafDER(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	der, err := pemfile.LeafDER(b)
-	if err != nil {
-		return nil, fmt.Errorf("%w in %s", err, path)
-	}
-	return der, nil
+	// The error names no path: it becomes a warning shown beside the path.
+	return pemfile.LeafDER(b)
 }

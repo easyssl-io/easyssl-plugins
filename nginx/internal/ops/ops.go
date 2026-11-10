@@ -1,5 +1,5 @@
-// Package ops implements the nginx Plugin's three operations, describe,
-// discover and deploy; main.go is only the stdio framing. The request and response shapes
+// Package ops implements the nginx Plugin's operations, describe, discover,
+// deploy and relocate; main.go is only the stdio framing. The request and response shapes
 // are the shared plugincontract types, so a field added on the Agent's side
 // cannot be silently ignored here.
 package ops
@@ -16,6 +16,7 @@ const (
 	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
+	OpRelocate = plugincontract.OpRelocate
 	// WriteFileFlag is internal: deploy runs this executable with it under a
 	// file owner's credentials (hostfile.WriteAs). A flag rather than an
 	// operation name, so the contract's operations stay its own.
@@ -39,6 +40,7 @@ type (
 	DiscoveredCertificate = plugincontract.DiscoveredCertificate
 	ExtraDatum            = plugincontract.ExtraDatum
 	DeployRequest         = plugincontract.DeployRequest
+	RelocateRequest       = plugincontract.RelocateRequest
 )
 
 // declarations is the only place this Plugin's settings are defined: the

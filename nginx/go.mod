@@ -3,7 +3,7 @@ module github.com/easyssl-io/easyssl-plugins/nginx
 go 1.26.10
 
 require (
-	github.com/easyssl-io/easyssl-contract v0.1.0
+	github.com/easyssl-io/easyssl-contract v0.2.0
 	github.com/easyssl-io/easyssl-plugins/internal v0.0.1
 	github.com/nginxinc/nginx-go-crossplane v0.4.89
 )

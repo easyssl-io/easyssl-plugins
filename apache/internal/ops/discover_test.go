@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/easyssl-io/easyssl-contract/contracttest"
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
+	"github.com/easyssl-io/easyssl-contract/plugincontract"
 )
 
 // The cases under testdata/cases are what httpd 2.4 itself reported for the
@@ -86,11 +88,29 @@ func TestDiscoverCases(t *testing.T) {
 	targets, warnings := analyze(masters, reader)
 
 	var b strings.Builder
+	all := append([]l10n.Text{}, warnings...)
 	for _, tg := range targets {
 		s := tg.Settings
-		b.WriteString("SUGGEST " + s[SettingCertificate] + "\n")
+		verb := "SUGGEST "
+		if len(tg.Warnings) > 0 {
+			verb = "REPORT "
+		}
+		b.WriteString(verb + s[SettingCertificate] + "\n")
 		b.WriteString("  key: " + s[SettingKey] + "\n  test: " + s[SettingTest] + "\n  reload: " + s[SettingReload] + "\n")
-		b.WriteString("  " + tg.ExtraData[0].Value + "\n")
+		for _, r := range tg.References {
+			fmt.Fprintf(&b, "  ref %s %s:%d %s\n", r.Setting, r.File, r.Line, r.Value)
+		}
+		for _, w := range tg.Warnings {
+			b.WriteString("  warn " + w.In(l10n.English) + "\n")
+			// Shown beside the certificate's path, so it does not repeat it.
+			if strings.Contains(w.In(l10n.English), "`"+s[SettingCertificate]+"`") {
+				t.Errorf("a warning of %s names it: %s", s[SettingCertificate], w.In(l10n.English))
+			}
+		}
+		if len(tg.ExtraData) != 0 || tg.ExtraData == nil {
+			t.Errorf("%s extra data %+v, want an empty list", s[SettingCertificate], tg.ExtraData)
+		}
+		all = append(all, tg.Warnings...)
 	}
 	for _, w := range warnings {
 		b.WriteString("WARN " + w.In(l10n.English) + "\n")
@@ -99,10 +119,14 @@ func TestDiscoverCases(t *testing.T) {
 	contracttest.GoldenFile(t, "testdata/discover.golden", []byte(got))
 
 	// Every warning reads in Spanish too, with nothing left untranslated.
-	for _, w := range warnings {
+	for _, w := range all {
 		if es := w.In("es"); es == w.In(l10n.English) {
 			t.Errorf("a warning has no Spanish: %s", es)
 		}
+	}
+	d := DiscoverResponse{ContractVersion: plugincontractVersion, DiscoveredTargets: targets, Warnings: warnings}
+	if err := plugincontract.ValidateDiscover(declarations(), d); err != nil {
+		t.Errorf("the Agent would refuse this answer: %v", err)
 	}
 }
 

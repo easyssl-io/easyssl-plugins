@@ -2,89 +2,289 @@ SUGGEST @ROOT@/A/a.crt
   key: @ROOT@/A/a.key
   test: /opt/httpd/bin/httpd -f @ROOT@/A/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/A/httpd.conf -k graceful
-  @ROOT@/A/httpd.conf:24 (pid 1000)
+  ref SSLCertificateFile @ROOT@/A/httpd.conf:24 @ROOT@/A/a.crt
+  ref SSLCertificateKeyFile @ROOT@/A/httpd.conf:25 @ROOT@/A/a.key
 SUGGEST @ROOT@/AA/aa.crt
   key: @ROOT@/AA/aa.key
   test: /opt/httpd/bin/httpd -f @ROOT@/AA/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/AA/httpd.conf -k graceful
-  @ROOT@/AA/httpd.conf:22 (pid 1001)
+  ref SSLCertificateFile @ROOT@/AA/httpd.conf:22 @ROOT@/AA/aa.crt
+  ref SSLCertificateKeyFile @ROOT@/AA/httpd.conf:23 @ROOT@/AA/aa.key
+REPORT @ROOT@/AB/ab.crt
+  key: @ROOT@/AB/ab.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/AB/httpd.conf:21 @ROOT@/AB/ab.crt
+  ref SSLCertificateKeyFile @ROOT@/AB/httpd.conf:22 @ROOT@/AB/ab.key
+  warn It is configured at server level (`@ROOT@/AB/httpd.conf:21`), but every TLS virtual host has its own certificate and the main server serves no TLS, so nothing serves it.
 SUGGEST @ROOT@/AB/abv.crt
   key: @ROOT@/AB/abv.key
   test: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/AB/httpd.conf -k graceful
-  @ROOT@/AB/httpd.conf:26 (pid 1002)
+  ref SSLCertificateFile @ROOT@/AB/httpd.conf:26 @ROOT@/AB/abv.crt
+  ref SSLCertificateKeyFile @ROOT@/AB/httpd.conf:27 @ROOT@/AB/abv.key
+REPORT @ROOT@/B/b1.crt
+  key: @ROOT@/B/b1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/B/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/B/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/B/httpd.conf:24 @ROOT@/B/b1.crt
+  ref SSLCertificateKeyFile @ROOT@/B/httpd.conf:25 @ROOT@/B/b1.key
+  warn Name collision on `*:9442`: `@ROOT@/B/httpd.conf:27` never gets its name `dup.test`, which `@ROOT@/B/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/B/b2.crt
+  key: @ROOT@/B/b2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/B/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/B/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/B/httpd.conf:30 @ROOT@/B/b2.crt
+  ref SSLCertificateKeyFile @ROOT@/B/httpd.conf:31 @ROOT@/B/b2.key
+  warn Name collision on `*:9442`: `@ROOT@/B/httpd.conf:27` never gets its name `dup.test`, which `@ROOT@/B/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/C/c1.crt
+  key: @ROOT@/C/c1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/C/httpd.conf:24 @ROOT@/C/c1.crt
+  ref SSLCertificateKeyFile @ROOT@/C/httpd.conf:25 @ROOT@/C/c1.key
+  warn Name collision on `*:9443`: `@ROOT@/C/httpd.conf:28` never gets its name `c2.test`, which `@ROOT@/C/httpd.conf:21` takes; `@ROOT@/C/httpd.conf:34` never gets its name `c1.test`, which `@ROOT@/C/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/C/c2.crt
+  key: @ROOT@/C/c2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/C/httpd.conf:31 @ROOT@/C/c2.crt
+  ref SSLCertificateKeyFile @ROOT@/C/httpd.conf:32 @ROOT@/C/c2.key
+  warn Name collision on `*:9443`: `@ROOT@/C/httpd.conf:28` never gets its name `c2.test`, which `@ROOT@/C/httpd.conf:21` takes; `@ROOT@/C/httpd.conf:34` never gets its name `c1.test`, which `@ROOT@/C/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/C/c3.crt
+  key: @ROOT@/C/c3.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/C/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/C/httpd.conf:37 @ROOT@/C/c3.crt
+  ref SSLCertificateKeyFile @ROOT@/C/httpd.conf:38 @ROOT@/C/c3.key
+  warn Name collision on `*:9443`: `@ROOT@/C/httpd.conf:28` never gets its name `c2.test`, which `@ROOT@/C/httpd.conf:21` takes; `@ROOT@/C/httpd.conf:34` never gets its name `c1.test`, which `@ROOT@/C/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/D/d1.crt
+  key: @ROOT@/D/d1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/D/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/D/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/D/httpd.conf:24 @ROOT@/D/d1.crt
+  ref SSLCertificateKeyFile @ROOT@/D/httpd.conf:25 @ROOT@/D/d1.key
+  warn Name collision on `*:9444`: `@ROOT@/D/httpd.conf:27` never gets its name `127.0.0.1`, which is not a host name, so clients reach it without SNI and get `@ROOT@/D/httpd.conf:21`. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/D/d2.crt
+  key: @ROOT@/D/d2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/D/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/D/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/D/httpd.conf:30 @ROOT@/D/d2.crt
+  ref SSLCertificateKeyFile @ROOT@/D/httpd.conf:31 @ROOT@/D/d2.key
+  warn Name collision on `*:9444`: `@ROOT@/D/httpd.conf:27` never gets its name `127.0.0.1`, which is not a host name, so clients reach it without SNI and get `@ROOT@/D/httpd.conf:21`. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/E/e1.crt
+  key: @ROOT@/E/e1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/E/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/E/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/E/httpd.conf:23 @ROOT@/E/e1.crt
+  ref SSLCertificateKeyFile @ROOT@/E/httpd.conf:24 @ROOT@/E/e1.key
+  warn Name collision on `*:9445`: `@ROOT@/E/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/E/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/E/e2.crt
+  key: @ROOT@/E/e2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/E/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/E/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/E/httpd.conf:28 @ROOT@/E/e2.crt
+  ref SSLCertificateKeyFile @ROOT@/E/httpd.conf:29 @ROOT@/E/e2.key
+  warn Name collision on `*:9445`: `@ROOT@/E/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/E/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/F/f1.crt
+  key: @ROOT@/F/f1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/F/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/F/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/F/httpd.conf:23 @ROOT@/F/f1.crt
+  ref SSLCertificateKeyFile @ROOT@/F/httpd.conf:24 @ROOT@/F/f1.key
+  warn Name collision on `*:9446`: `@ROOT@/F/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/F/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/F/f2.crt
+  key: @ROOT@/F/f2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/F/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/F/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/F/httpd.conf:28 @ROOT@/F/f2.crt
+  ref SSLCertificateKeyFile @ROOT@/F/httpd.conf:29 @ROOT@/F/f2.key
+  warn Name collision on `*:9446`: `@ROOT@/F/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/F/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
 SUGGEST @ROOT@/G/g1.crt
   key: @ROOT@/G/g1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -k graceful
-  @ROOT@/G/httpd.conf:24 (pid 1008)
+  ref SSLCertificateFile @ROOT@/G/httpd.conf:24 @ROOT@/G/g1.crt
+  ref SSLCertificateKeyFile @ROOT@/G/httpd.conf:25 @ROOT@/G/g1.key
 SUGGEST @ROOT@/G/g2.crt
   key: @ROOT@/G/g2.key
   test: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/G/httpd.conf -k graceful
-  @ROOT@/G/httpd.conf:30 (pid 1008)
+  ref SSLCertificateFile @ROOT@/G/httpd.conf:30 @ROOT@/G/g2.crt
+  ref SSLCertificateKeyFile @ROOT@/G/httpd.conf:31 @ROOT@/G/g2.key
+REPORT @ROOT@/H/h.crt
+  key: @ROOT@/H/h.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/H/httpd.conf:30 @ROOT@/H/h.crt
+  ref SSLCertificateKeyFile @ROOT@/H/httpd.conf:31 @ROOT@/H/h.key
+  warn Nothing listens where the virtual host at `@ROOT@/H/httpd.conf:27` could be reached (`*:9448`, no matching `Listen`), so it is never reached.
 SUGGEST @ROOT@/H/hx.crt
   key: @ROOT@/H/hx.key
   test: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/H/httpd.conf -k graceful
-  @ROOT@/H/httpd.conf:24 (pid 1009)
+  ref SSLCertificateFile @ROOT@/H/httpd.conf:24 @ROOT@/H/hx.crt
+  ref SSLCertificateKeyFile @ROOT@/H/httpd.conf:25 @ROOT@/H/hx.key
+REPORT @ROOT@/I/i.crt
+  key: @ROOT@/I/i.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/I/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/I/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/I/httpd.conf:24 @ROOT@/I/i.crt
+  ref SSLCertificateKeyFile @ROOT@/I/httpd.conf:25 @ROOT@/I/i.key
+  warn `SSLEngine` is off in the virtual host at `@ROOT@/I/httpd.conf:21`, so it never serves this certificate.
+REPORT @ROOT@/J/j2.crt
+  key: @ROOT@/J/j2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/J/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/J/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/J/httpd.conf:27 @ROOT@/J/j2.crt
+  ref SSLCertificateKeyFile @ROOT@/J/httpd.conf:28 @ROOT@/J/j2.key
+  warn The virtual host at `@ROOT@/J/httpd.conf:24` is on `*:9450`, whose default virtual host (`@ROOT@/J/httpd.conf:21`) does not use TLS, so that port speaks plain HTTP.
+REPORT @ROOT@/K/k1.crt
+  key: @ROOT@/K/k1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/K/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/K/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/K/httpd.conf:24 @ROOT@/K/k1.crt
+  ref SSLCertificateKeyFile @ROOT@/K/httpd.conf:25 @ROOT@/K/k1.key
+  warn 2 RSA certificates in one place (`@ROOT@/K/httpd.conf:24`, `@ROOT@/K/httpd.conf:26`): Apache serves only the last of each key type, yet loads every one on every reload. Keep one certificate per key type.
+REPORT @ROOT@/K/k2.crt
+  key: @ROOT@/K/k2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/K/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/K/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/K/httpd.conf:26 @ROOT@/K/k2.crt
+  ref SSLCertificateKeyFile @ROOT@/K/httpd.conf:27 @ROOT@/K/k2.key
+  warn 2 RSA certificates in one place (`@ROOT@/K/httpd.conf:24`, `@ROOT@/K/httpd.conf:26`): Apache serves only the last of each key type, yet loads every one on every reload. Keep one certificate per key type.
+REPORT @ROOT@/L/l.crt
+  key: @ROOT@/L/l.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/L/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/L/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/L/httpd.conf:24 @ROOT@/L/l.crt
+  ref SSLCertificateKeyFile @ROOT@/L/httpd.conf:25 @ROOT@/L/l.key
+  ref SSLCertificateFile @ROOT@/L/httpd.conf:30 @ROOT@/L/l.crt
+  ref SSLCertificateKeyFile @ROOT@/L/httpd.conf:31 @ROOT@/L/l-copy.key
+  warn It is paired with several key files holding the same key (`@ROOT@/L/l-copy.key`, `@ROOT@/L/l.key`); point every use at one file, since a renewal writes only one and the next reload then fails on a key that no longer matches.
+REPORT @ROOT@/M/m.crt
+  key: @ROOT@/M/m.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/M/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/M/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/M/httpd.conf:24 @ROOT@/M/m.crt
+  ref SSLCertificateKeyFile @ROOT@/M/httpd.conf:25 @ROOT@/M/m.key
+  warn It is used with `SSLCertificateChainFile` (`@ROOT@/M/httpd.conf:26`), which is deprecated since httpd 2.4.8: `SSLCertificateFile` loads the intermediate certificates itself, and a Deployment writes the full chain there, so the intermediates would be sent twice. Remove the `SSLCertificateChainFile` directive and put the chain in the certificate file.
+REPORT @ROOT@/N/n.crt
+  key: @ROOT@/N/n.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/N/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/N/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/N/httpd.conf:25 @ROOT@/N/n.crt
+  ref SSLCertificateKeyFile @ROOT@/N/httpd.conf:26 @ROOT@/N/n.key
+  warn Its key `@ROOT@/N/n.key` is protected by a passphrase, and a Deployment cannot keep that protection.
+REPORT @ROOT@/O/o.crt
+  key: @ROOT@/O/o.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/O/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/O/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/O/httpd.conf:24 @ROOT@/O/o.crt
+  ref SSLCertificateKeyFile @ROOT@/O/httpd.conf:25 @ROOT@/O/o.key
+  warn The virtual host at `@ROOT@/O/httpd.conf:21` expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves.
+REPORT @ROOT@/P/p.crt
+  key: @ROOT@/P/p.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/P/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/P/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/P/httpd.conf:24 @ROOT@/P/p.crt
+  ref SSLCertificateKeyFile @ROOT@/P/httpd.conf:25 @ROOT@/P/p.key
+  warn `@ROOT@/P/httpd.conf` changed since the instance last loaded its configuration, so a reload would also apply those edits.
+REPORT @ROOT@/R/r.crt
+  key: @ROOT@/R/r.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/R1/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/R1/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/R1/httpd.conf:24 @ROOT@/R/r.crt
+  ref SSLCertificateKeyFile @ROOT@/R1/httpd.conf:25 @ROOT@/R/r.key
+  ref SSLCertificateFile @ROOT@/R2/httpd.conf:24 @ROOT@/R/r.crt
+  ref SSLCertificateKeyFile @ROOT@/R2/httpd.conf:25 @ROOT@/R/r.key
+  warn 2 Apache instances load it (`pid 1018`, `pid 1019`), and a renewal is complete only once every one of them has reloaded. Give each instance its own copy.
 SUGGEST @ROOT@/S/s.crt
   key: @ROOT@/S/s.key
   test: /opt/httpd/bin/httpd -f @ROOT@/S/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/S/httpd.conf -k graceful
-  @ROOT@/S/httpd.conf:21 (pid 1020)
+  ref SSLCertificateFile @ROOT@/S/httpd.conf:21 @ROOT@/S/s.crt
+  ref SSLCertificateKeyFile @ROOT@/S/httpd.conf:22 @ROOT@/S/s.key
+REPORT @ROOT@/T/t.crt
+  key: 
+  test: /opt/httpd/bin/httpd -f @ROOT@/T/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/T/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/T/httpd.conf:24 @ROOT@/T/t.crt
+  warn The private key is inside the certificate file (no `SSLCertificateKeyFile` for `@ROOT@/T/httpd.conf:24`), and a Deployment writes them as two files.
 SUGGEST @ROOT@/U/uec.crt
   key: @ROOT@/U/uec.key
   test: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -k graceful
-  @ROOT@/U/httpd.conf:26 (pid 1022)
+  ref SSLCertificateFile @ROOT@/U/httpd.conf:26 @ROOT@/U/uec.crt
+  ref SSLCertificateKeyFile @ROOT@/U/httpd.conf:27 @ROOT@/U/uec.key
 SUGGEST @ROOT@/U/ursa.crt
   key: @ROOT@/U/ursa.key
   test: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/U/httpd.conf -k graceful
-  @ROOT@/U/httpd.conf:24 (pid 1022)
+  ref SSLCertificateFile @ROOT@/U/httpd.conf:24 @ROOT@/U/ursa.crt
+  ref SSLCertificateKeyFile @ROOT@/U/httpd.conf:25 @ROOT@/U/ursa.key
 SUGGEST @ROOT@/V/v1.crt
   key: @ROOT@/V/v1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V1/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V1/httpd.conf -k graceful
-  @ROOT@/V1/httpd.conf:24 (pid 1023)
+  ref SSLCertificateFile @ROOT@/V1/httpd.conf:24 @ROOT@/V/v1.crt
+  ref SSLCertificateKeyFile @ROOT@/V1/httpd.conf:25 @ROOT@/V/v1.key
 SUGGEST @ROOT@/V/v2.crt
   key: @ROOT@/V/v2.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V2/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V2/httpd.conf -k graceful
-  @ROOT@/V2/httpd.conf:24 (pid 1024)
+  ref SSLCertificateFile @ROOT@/V2/httpd.conf:24 @ROOT@/V/v2.crt
+  ref SSLCertificateKeyFile @ROOT@/V2/httpd.conf:25 @ROOT@/V/v2.key
 SUGGEST @ROOT@/V/v3.crt
   key: @ROOT@/V/v3.key
   test: /opt/httpd/bin/httpd -f @ROOT@/V3/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/V3/httpd.conf -k graceful
-  @ROOT@/V3/httpd.conf:24 (pid 1025)
+  ref SSLCertificateFile @ROOT@/V3/httpd.conf:24 @ROOT@/V/v3.crt
+  ref SSLCertificateKeyFile @ROOT@/V3/httpd.conf:25 @ROOT@/V/v3.key
 SUGGEST @ROOT@/W/w.crt
   key: @ROOT@/W/w.key
   test: /opt/httpd/bin/httpd -f @ROOT@/W/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/W/httpd.conf -k graceful
-  @ROOT@/W/httpd.conf:25 (pid 1026)
+  ref SSLCertificateFile @ROOT@/W/httpd.conf:25 @ROOT@/W/w.crt
+  ref SSLCertificateKeyFile @ROOT@/W/httpd.conf:26 @ROOT@/W/w.key
 SUGGEST @ROOT@/X/x1.crt
   key: @ROOT@/X/x1.key
   test: /opt/httpd/bin/httpd -f @ROOT@/X1/httpd.conf -t
   reload: /opt/httpd/bin/httpd -f @ROOT@/X1/httpd.conf -k graceful
-  @ROOT@/X1/httpd.conf:25 (pid 1027)
-WARN Name collision on `*:9442`: `@ROOT@/B/httpd.conf:27` never gets its name `dup.test`, which `@ROOT@/B/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/B/b1.crt`, `@ROOT@/B/b2.crt`.
-WARN Name collision on `*:9443`: `@ROOT@/C/httpd.conf:28` never gets its name `c2.test`, which `@ROOT@/C/httpd.conf:21` takes; `@ROOT@/C/httpd.conf:34` never gets its name `c1.test`, which `@ROOT@/C/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/C/c1.crt`, `@ROOT@/C/c2.crt`, `@ROOT@/C/c3.crt`.
-WARN Name collision on `*:9444`: `@ROOT@/D/httpd.conf:27` never gets its name `127.0.0.1`, which is not a host name, so clients reach it without SNI and get `@ROOT@/D/httpd.conf:21`. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/D/d1.crt`, `@ROOT@/D/d2.crt`.
-WARN Name collision on `*:9445`: `@ROOT@/E/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/E/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/E/e1.crt`, `@ROOT@/E/e2.crt`.
-WARN Name collision on `*:9446`: `@ROOT@/F/httpd.conf:26` never gets its name `localhost`, which `@ROOT@/F/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/F/f1.crt`, `@ROOT@/F/f2.crt`.
-WARN 2 RSA certificates in one place (`@ROOT@/K/httpd.conf:24`, `@ROOT@/K/httpd.conf:26`): Apache serves only the last of each key type, yet loads every one on every reload. Keep one certificate per key type. Not suggested: `@ROOT@/K/k1.crt`, `@ROOT@/K/k2.crt`.
-WARN Name collision on `*:9479`: `@ROOT@/Y/httpd.conf:28` never gets its name `www.y.test`, which `@ROOT@/Y/httpd.conf:21` takes; `@ROOT@/Y/httpd.conf:34` never gets its name `y1.test`, which `@ROOT@/Y/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own. Not suggested: `@ROOT@/Y/y1.crt`, `@ROOT@/Y/y2.crt`, `@ROOT@/Y/y3.crt`.
-WARN `@ROOT@/AB/ab.crt` is not suggested: it is configured at server level (`@ROOT@/AB/httpd.conf:21`), but every TLS virtual host has its own certificate and the main server serves no TLS, so nothing serves it.
-WARN `@ROOT@/H/h.crt` is not suggested: nothing listens where the virtual host at `@ROOT@/H/httpd.conf:27` could be reached (`*:9448`, no matching `Listen`), so it is never reached.
-WARN `@ROOT@/I/i.crt` is not suggested: `SSLEngine` is off in the virtual host at `@ROOT@/I/httpd.conf:21`, so it never serves this certificate.
-WARN `@ROOT@/J/j2.crt` is not suggested: the virtual host at `@ROOT@/J/httpd.conf:24` is on `*:9450`, whose default virtual host (`@ROOT@/J/httpd.conf:21`) does not use TLS, so that port speaks plain HTTP.
-WARN `@ROOT@/L/l.crt` is not suggested: it is paired with several key files holding the same key (`@ROOT@/L/l-copy.key`, `@ROOT@/L/l.key`); point every use at one file, since a renewal writes only one and the next reload then fails on a key that no longer matches.
-WARN `@ROOT@/M/m.crt` is not suggested: it is used with `SSLCertificateChainFile` (`@ROOT@/M/httpd.conf:26`), which is deprecated since httpd 2.4.8: `SSLCertificateFile` loads the intermediate certificates itself, and a Deployment writes the full chain there, so the intermediates would be sent twice. Remove the `SSLCertificateChainFile` directive and put the chain in the certificate file.
-WARN `@ROOT@/N/n.crt` is not suggested: its key `@ROOT@/N/n.key` is protected by a passphrase, and a Deployment cannot keep that protection.
-WARN `@ROOT@/O/o.crt` is not suggested: the virtual host at `@ROOT@/O/httpd.conf:21` expects the PROXY protocol (`RemoteIPProxyProtocol On`), so a local connection cannot check what it serves.
-WARN `@ROOT@/P/p.crt` is not suggested: `@ROOT@/P/httpd.conf` changed since the instance last loaded its configuration, so a reload would also apply those edits.
-WARN `@ROOT@/R/r.crt` is not suggested: 2 Apache instances load it (`pid 1018`, `pid 1019`), and a renewal is complete only once every one of them has reloaded. Give each instance its own copy.
-WARN `@ROOT@/T/t.crt` is not suggested: the private key is inside the certificate file (no `SSLCertificateKeyFile` for `@ROOT@/T/httpd.conf:24`), and a Deployment writes them as two files.
-WARN `@ROOT@/X/x2.crt` is not suggested: nothing listens where the virtual host at `@ROOT@/X2/httpd.conf:21` could be reached (`*:9478`, no matching `Listen`), so it is never reached.
-WARN `@ROOT@/Z/z.crt` is not suggested: `SSLEngine optional` in the virtual host at `@ROOT@/Z/httpd.conf:21` is no longer supported by httpd 2.4, which treats the port as plain HTTP (AH10510), so it never serves this certificate.
+  ref SSLCertificateFile @ROOT@/X1/httpd.conf:25 @ROOT@/X/x1.crt
+  ref SSLCertificateKeyFile @ROOT@/X1/httpd.conf:26 @ROOT@/X/x1.key
+REPORT @ROOT@/X/x2.crt
+  key: @ROOT@/X/x2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/X2/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/X2/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/X2/httpd.conf:24 @ROOT@/X/x2.crt
+  ref SSLCertificateKeyFile @ROOT@/X2/httpd.conf:25 @ROOT@/X/x2.key
+  warn Nothing listens where the virtual host at `@ROOT@/X2/httpd.conf:21` could be reached (`*:9478`, no matching `Listen`), so it is never reached.
+REPORT @ROOT@/Y/y1.crt
+  key: @ROOT@/Y/y1.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/Y/httpd.conf:24 @ROOT@/Y/y1.crt
+  ref SSLCertificateKeyFile @ROOT@/Y/httpd.conf:25 @ROOT@/Y/y1.key
+  warn Name collision on `*:9479`: `@ROOT@/Y/httpd.conf:28` never gets its name `www.y.test`, which `@ROOT@/Y/httpd.conf:21` takes; `@ROOT@/Y/httpd.conf:34` never gets its name `y1.test`, which `@ROOT@/Y/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/Y/y2.crt
+  key: @ROOT@/Y/y2.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/Y/httpd.conf:31 @ROOT@/Y/y2.crt
+  ref SSLCertificateKeyFile @ROOT@/Y/httpd.conf:32 @ROOT@/Y/y2.key
+  warn Name collision on `*:9479`: `@ROOT@/Y/httpd.conf:28` never gets its name `www.y.test`, which `@ROOT@/Y/httpd.conf:21` takes; `@ROOT@/Y/httpd.conf:34` never gets its name `y1.test`, which `@ROOT@/Y/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/Y/y3.crt
+  key: @ROOT@/Y/y3.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/Y/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/Y/httpd.conf:37 @ROOT@/Y/y3.crt
+  ref SSLCertificateKeyFile @ROOT@/Y/httpd.conf:38 @ROOT@/Y/y3.key
+  warn Name collision on `*:9479`: `@ROOT@/Y/httpd.conf:28` never gets its name `www.y.test`, which `@ROOT@/Y/httpd.conf:21` takes; `@ROOT@/Y/httpd.conf:34` never gets its name `y1.test`, which `@ROOT@/Y/httpd.conf:21` takes. Apache picks the first virtual host that matches a name, so a virtual host is never served for a name another one takes, yet Apache still loads its certificate on every reload. Give each virtual host names of its own.
+REPORT @ROOT@/Z/z.crt
+  key: @ROOT@/Z/z.key
+  test: /opt/httpd/bin/httpd -f @ROOT@/Z/httpd.conf -t
+  reload: /opt/httpd/bin/httpd -f @ROOT@/Z/httpd.conf -k graceful
+  ref SSLCertificateFile @ROOT@/Z/httpd.conf:24 @ROOT@/Z/z.crt
+  ref SSLCertificateKeyFile @ROOT@/Z/httpd.conf:25 @ROOT@/Z/z.key
+  warn `SSLEngine optional` in the virtual host at `@ROOT@/Z/httpd.conf:21` is no longer supported by httpd 2.4, which treats the port as plain HTTP (AH10510), so it never serves this certificate.

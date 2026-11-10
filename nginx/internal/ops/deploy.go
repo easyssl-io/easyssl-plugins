@@ -75,9 +75,9 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if err := pemfile.PairMatches([]byte(req.CertificatePem), []byte(req.PrivateKeyPem)); err != nil {
 		return fmt.Errorf("the Deployment's certificate and key do not belong together: %w", err)
 	}
-	for _, p := range []string{certPath, keyPath} {
-		if probs := pathProblems(p); len(probs) > 0 {
-			return fmt.Errorf("nothing was written: %s", probs[0].In(l10n.English))
+	for p, key := range map[string]bool{certPath: false, keyPath: true} {
+		if probs := pathProblems(p, key); len(probs) > 0 {
+			return fmt.Errorf("nothing was written to %s: %s", p, probs[0].In(l10n.English))
 		}
 	}
 	live := servingOf(certPath)

@@ -92,7 +92,8 @@ func TestDeployAheadFailedTestRestores(t *testing.T) {
 }
 
 // What deploy refuses before writing anything: a pair that does not belong
-// together, an encrypted key, and a path another ACME client manages.
+// together and an encrypted key. A path another ACME client manages is the
+// Agent's to refuse, so here it is written like any other.
 func TestDeployRefusals(t *testing.T) {
 	dir := ownedDir(t)
 	a, _ := newPair(t, "a.test")
@@ -112,12 +113,12 @@ func TestDeployRefusals(t *testing.T) {
 	if read(t, kp) != enc {
 		t.Error("the encrypted key changed")
 	}
-	le := filepath.Join(dir, "etc", "letsencrypt", "live", "x")
-	if _, err := deployAheadTo(t, dir, cert, key, filepath.Join(le, "fullchain.pem"), filepath.Join(le, "privkey.pem"), 0); err == nil || !strings.Contains(err.Error(), "another ACME client") {
-		t.Errorf("a certbot path: %v", err)
-	}
 	if _, err := os.Stat(filepath.Join(dir, "log")); !os.IsNotExist(err) {
 		t.Error("a command ran for a refused Deployment")
+	}
+	le := filepath.Join(dir, "etc", "letsencrypt", "live", "x")
+	if out, err := deployAheadTo(t, dir, cert, key, filepath.Join(le, "fullchain.pem"), filepath.Join(le, "privkey.pem"), 0); err != nil {
+		t.Errorf("a certbot path: %v\n%s", err, out)
 	}
 }
 

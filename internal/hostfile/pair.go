@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
@@ -15,10 +16,12 @@ type Written struct {
 	files []previous
 }
 
-// previous is one replaced file: nil data when there was none.
+// previous is one replaced file: nil data when there was none, and the
+// modification time to give it back when known.
 type previous struct {
-	path string
-	data []byte
+	path  string
+	data  []byte
+	mtime time.Time
 }
 
 // WritePair writes a certificate file and a key file, each as the user its
@@ -51,7 +54,7 @@ func WritePair(op, certPath, keyPath string, cert, key []byte, stdout, stderr io
 			w.Restore(stdout, stderr)
 			return nil, fmt.Errorf("writing %s: %w", f.path, err)
 		}
-		w.files = append(w.files, previous{f.path, old})
+		w.files = append(w.files, previous{path: f.path, data: old})
 		fmt.Fprintf(stdout, "wrote %s (%s)\n", f.path, Describe(f.path, old != nil))
 	}
 	cb, err1 := ReadSafely(certPath)

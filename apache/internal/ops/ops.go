@@ -1,5 +1,5 @@
-// Package ops implements the Apache Plugin's three operations, describe,
-// discover and deploy; main.go is only the stdio framing. The request and
+// Package ops implements the Apache Plugin's operations, describe, discover,
+// deploy and relocate; main.go is only the stdio framing. The request and
 // response shapes are the shared plugincontract types, so a field added on the
 // Agent's side cannot be silently ignored here.
 //
@@ -9,7 +9,8 @@
 // reaches each virtual host; discover.go turns that into discovered Targets and
 // warnings; write.go replaces a file without changing anything but its
 // content; deploy.go and verify.go install a Certificate and check that it is
-// served.
+// served; references.go and relocate.go point the configuration at other
+// files.
 package ops
 
 import (
@@ -24,6 +25,7 @@ const (
 	OpDescribe = plugincontract.OpDescribe
 	OpDiscover = plugincontract.OpDiscover
 	OpDeploy   = plugincontract.OpDeploy
+	OpRelocate = plugincontract.OpRelocate
 	// WriteFileFlag is internal: deploy runs this executable with it under a
 	// file owner's credentials. A flag rather than an operation name, so the
 	// contract's operations stay its own.
@@ -47,6 +49,7 @@ type (
 	DiscoveredCertificate = plugincontract.DiscoveredCertificate
 	ExtraDatum            = plugincontract.ExtraDatum
 	DeployRequest         = plugincontract.DeployRequest
+	RelocateRequest       = plugincontract.RelocateRequest
 )
 
 // declarations is the only place this Plugin's settings are defined: the

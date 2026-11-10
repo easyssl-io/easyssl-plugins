@@ -218,9 +218,10 @@ func TestPairingGuard(t *testing.T) {
 	}
 }
 
-// A certificate under another ACME client's directory is a warning, not a
-// suggestion, and a Deployment to it writes nothing.
-func TestACMEManagedPathIsNotSuggested(t *testing.T) {
+// A certificate under another ACME client's directory is reported like any
+// other: which clients manage which files is the Agent's knowledge, and the
+// Agent warns and refuses on it before this Plugin runs.
+func TestACMEManagedPathIsLeftToTheAgent(t *testing.T) {
 	m := issue(t, "ec", "certbot.example.test")
 	root := tree(t, map[string]string{
 		"etc/letsencrypt/archive/x/cert1.pem":    m.cert,
@@ -234,19 +235,15 @@ func TestACMEManagedPathIsNotSuggested(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 0 {
-		t.Fatalf("suggested %v", targets)
+	if len(targets) != 1 || targets[0].Settings[SettingCertificate] != root+"/etc/letsencrypt/archive/x/cert1.pem" || len(warnings) != 0 {
+		t.Fatalf("targets %v, warnings %q, want cert1.pem suggested with no warning", targets, warnings)
 	}
-	if !hasWarning(warnings, "cert1.pem", "another ACME client") {
-		t.Fatalf("no warning about the ACME client: %q", warnings)
+	n := issue(t, "ec", "a.example.test")
+	if out, err := deployTo(t, root, n, "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem"); err != nil {
+		t.Fatalf("deploy: %v\n%s", err, out)
 	}
-	before := content(t, root+"/etc/letsencrypt/archive/x/cert1.pem")
-	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/etc/letsencrypt/live/x/fullchain.pem", root+"/etc/letsencrypt/live/x/privkey.pem")
-	if err == nil || !strings.Contains(err.Error(), "nothing was written") {
-		t.Fatalf("deploy = %v, want a refusal", err)
-	}
-	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != before {
-		t.Fatal("the certificate was written")
+	if content(t, root+"/etc/letsencrypt/archive/x/cert1.pem") != n.cert {
+		t.Fatal("the certificate was not written")
 	}
 }
 
@@ -295,7 +292,7 @@ func TestEncryptedKeyIsNotSuggested(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 0 || !hasWarning(warnings, "enc.crt", "passphrase") {
+	if len(targets) != 1 || len(warnings) != 0 || !hasWarning(targets[0].Warnings, "enc.key", "passphrase") {
 		t.Fatalf("targets %v, warnings %q", targets, warnings)
 	}
 	_, err := deployTo(t, root, issue(t, "ec", "a.example.test"), "", 0, root+"/enc.crt", root+"/enc.key")
@@ -307,9 +304,11 @@ func TestEncryptedKeyIsNotSuggested(t *testing.T) {
 	}
 }
 
-// A value nginx does not read from one file is a warning, never a suggestion,
-// and a certificate file one block pairs with such a key is not suggested
-// anywhere. A Target naming one by hand is refused before writing.
+// A certificate value nginx does not read from one file is a top-level
+// warning, since nothing there can be a Target. A certificate file one block
+// pairs with such a key is reported with a warning of its own, and its key
+// value is no reference, since it names no file. A Target naming one by hand
+// is refused before writing.
 func TestNotAFileIsNotSuggested(t *testing.T) {
 	ok, eng := issue(t, "ec", "ok.example.test"), issue(t, "ec", "eng.example.test")
 	root := tree(t, map[string]string{
@@ -330,17 +329,33 @@ MIIBmTCCAT+gAwIBAgIUQ...
 		t.Fatal(err)
 	}
 	targets, warnings := analyze([]instance{load(t, 100, conf)})
-	if len(targets) != 0 {
-		t.Errorf("suggested %v, want nothing: ok.crt is paired with a store: key, eng.crt with an engine: key", targets)
+	got := byCert(targets)
+	if len(targets) != 2 || suggested(got[root+"/ok.crt"]) || suggested(got[root+"/eng.crt"]) {
+		t.Errorf("targets %v, want ok.crt and eng.crt reported and not suggested: ok.crt is paired with a store: key, eng.crt with an engine: key", targets)
+	}
+	if len(warnings) != 2 {
+		t.Errorf("top-level warnings %q, want the variable and the data: certificate alone", warnings)
 	}
 	for _, want := range [][]string{
 		{"`" + root + "/w/$ssl_server_name.crt` (`pid 100:" + conf + ":3`) is not the name of one file"},
 		{"`data:-----BEGIN CERTIFICATE-----…` (`pid 100:" + conf + ":4`)"},
-		{"`engine:pkcs11:id_45` (`pid 100:" + conf + ":7`)"},
-		{"`store:pkcs11:token=t` (`pid 100:" + conf + ":9`)"},
 	} {
 		if !hasWarning(warnings, want...) {
 			t.Errorf("no warning saying %q in %q", want, warnings)
+		}
+	}
+	for cert, want := range map[string]string{
+		"eng.crt": "Its key `engine:pkcs11:id_45` (`pid 100:" + conf + ":7`)",
+		"ok.crt":  "Its key `store:pkcs11:token=t` (`pid 100:" + conf + ":9`)",
+	} {
+		tg := got[root+"/"+cert]
+		if !hasWarning(tg.Warnings, want) || !hasWarning(tg.Warnings, "different key files") {
+			t.Errorf("%s warnings %q, want %q and a key conflict", cert, tg.Warnings, want)
+		}
+		for _, r := range tg.References {
+			if notAFile(r.Value, true) {
+				t.Errorf("%s has a reference to %q, which names no file", cert, r.Value)
+			}
 		}
 	}
 	for _, s := range []map[string]string{

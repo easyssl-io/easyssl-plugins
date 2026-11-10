@@ -1,5 +1,5 @@
 {
-  "contractVersion": "0.1.0",
+  "contractVersion": "0.2.0",
   "version": "0.0.0",
   "description": {
     "en": "Installs a Certificate on a host by running a command you write. It knows nothing about any particular service: whatever can be done from a shell on that host, such as copying files into place, reloading a daemon, or calling another tool, this Plugin can do. A service that has a Plugin of its own is better served by that one. It runs as root on the host, so whoever can edit a Target's command can run anything there as root.",

@@ -9,6 +9,9 @@ Target is entered by hand. The command runs under `sh -e`, so a line that fails
 fails the deployment; a failure on the left of `&&` or `||`, or inside a
 pipeline, does not count, so a command that must fail goes on its own line.
 
+It reads no configuration, so it reports no configuration lines naming files,
+and `relocate` succeeds only when there is nothing to move, refusing any move.
+
 ## On the host
 
 - **Needs `/bin/sh`**, and nothing tied to Linux; release binaries are built

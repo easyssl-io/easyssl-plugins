@@ -77,11 +77,12 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 	if file == nil {
 		return deployAhead(ctx, req, certPath, keyPath, stdout, stderr)
 	}
-	if w := sv.warningFor(file); w != nil {
-		return fmt.Errorf("the Target no longer passes discovery's checks, so nothing was written: %s", w.In(l10n.English))
-	}
-	if !sv.suggestable(file) {
-		return fmt.Errorf("%s is part of a collision discovery reports (run discovery to see it), so nothing was written", certPath)
+	if ws := sv.warningsOf(file); len(ws) > 0 {
+		var why []string
+		for _, w := range ws {
+			why = append(why, w.In(l10n.English))
+		}
+		return fmt.Errorf("the Target no longer passes discovery's checks, so nothing was written: %s", strings.Join(why, " "))
 	}
 	m := file.locs[0].m
 	s := sv.cfgs[m]
@@ -169,9 +170,9 @@ func Deploy(ctx context.Context, req DeployRequest, stdout, stderr io.Writer) er
 // say, as root, and what Apache serves is not checked.
 func deployAhead(ctx context.Context, req DeployRequest, certPath, keyPath string, stdout, stderr io.Writer) error {
 	fmt.Fprintf(stdout, "no running Apache loads %s, so it is installed without the checks against a running instance\n", certPath)
-	for _, p := range []string{certPath, keyPath} {
-		if probs := pathProblems(p); len(probs) > 0 {
-			return errors.New(probs[0](catalog.In(l10n.English)))
+	for p, key := range map[string]bool{certPath: false, keyPath: true} {
+		if probs := pathProblems(p, key); len(probs) > 0 {
+			return fmt.Errorf("nothing was written to %s: %s", p, probs[0](catalog.In(l10n.English)))
 		}
 	}
 	fullchain, err := pemfile.JoinPEM(req.CertificatePem, req.ChainPem)

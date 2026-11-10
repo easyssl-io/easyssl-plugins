@@ -1,7 +1,8 @@
 // Command apache is the easySSL Plugin for the Apache HTTP Server (httpd,
-// apache2): it finds the certificates every running Apache master serves, and
+// apache2): it finds the certificates every running Apache master serves,
 // installs a Certificate at one of them by writing the files, testing the
-// configuration, reloading and checking what is then served.
+// configuration, reloading and checking what is then served, and points the
+// configuration at other files.
 //
 // An Agent drives it over stdio: the operation name is the single argv
 // argument, the JSON request rides stdin, and the answer is the exit status,
@@ -40,7 +41,7 @@ func main() {
 // run is main with its edges passed in, so the stdio framing is testable.
 func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: %s <%s|%s|%s>", ops.Name, ops.OpDescribe, ops.OpDiscover, ops.OpDeploy)
+		return fmt.Errorf("usage: %s <%s|%s|%s|%s>", ops.Name, ops.OpDescribe, ops.OpDiscover, ops.OpDeploy, ops.OpRelocate)
 	}
 	switch args[0] {
 	case ops.OpDescribe:
@@ -55,6 +56,13 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		// No response document: the exit status is the answer, and everything the run
 		// had to say is already on the two streams.
 		return ops.Deploy(context.Background(), req, stdout, os.Stderr)
+	case ops.OpRelocate:
+		var req ops.RelocateRequest
+		if err := readJSON(stdin, &req); err != nil {
+			return fmt.Errorf("reading the relocate request: %w", err)
+		}
+		// Answered like deploy: the exit status, and what happened on stdout.
+		return ops.Relocate(context.Background(), req, stdout, os.Stderr)
 	case ops.WriteFileFlag:
 		// Not an Agent operation: deploy runs this executable again with it, under
 		// the credentials of a file's owner, to replace a file in a directory that

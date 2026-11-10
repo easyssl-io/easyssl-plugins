@@ -4,9 +4,13 @@ The easySSL Plugin for the Apache HTTP Server (`httpd`, `apache2`).
 
 It finds the certificates every running Apache master serves, reading its
 configuration as httpd itself reports it (`DUMP_CONFIG` with every conditional
-evaluated, and `DUMP_VHOSTS`), and works out where a client reaches each one. A
-certificate is suggested as a Target only when nothing about how Apache uses it
-could make a renewal go wrong; anything else is a discovery warning instead.
+evaluated, and `DUMP_VHOSTS`), and works out where a client reaches each one.
+Each certificate file is reported with every `SSLCertificateFile` and
+`SSLCertificateKeyFile` line that names its files, its argument read back from
+the file as written. It is suggested as a Target only when nothing about how
+Apache uses it could make a renewal go wrong; anything else is a warning of its
+own instead. A certificate held in a token rather than a file is a warning
+alone, since nothing there can be a Target.
 
 It deploys by checking the Target and every other certificate and key the
 reload loads, writing the full chain and the key with everything but their
@@ -17,6 +21,20 @@ Certificate. A failure puts the previous files back, and an Apache the reload
 stopped is started again. A file no running Apache loads yet is deployed ahead:
 test and reload run as root, nothing is checked over TLS, and a failed reload
 leaves the new files in place.
+
+It relocates by replacing, in each `SSLCertificateFile` and
+`SSLCertificateKeyFile` line the request confirms, the argument as written with
+the file its move names, keeping the quotes it had, and writing each
+configuration file back with everything but its content kept, through any
+symlink an `Include` reached it by. It refuses, changing nothing, unless the
+lines its own reading of the configuration finds for the moves are exactly the
+confirmed ones, every destination is an absolute path to an existing file, and
+no instance's configuration was edited since it loaded it. It then runs each
+affected instance's configuration test as the instance, reloads it, and waits
+for a new generation of children, failing when the master exits. Any failure
+puts every file back, with its modification time, reloads what was already
+reloaded, and starts a master the reload stopped as deploy does. It speaks the
+language of `EASYSSL_LANG`, else of the locale.
 
 ## On the host
 
@@ -31,7 +49,8 @@ leaves the new files in place.
   `-C` and `-c`: `-v`, `-t -D DUMP_RUN_CFG`, `-t -D DUMP_MODULES`,
   `-t -D DUMP_CONFIG` (loading `mod_info` for that run when the instance has not),
   `-t -D DUMP_VHOSTS` and `-t -D DUMP_INCLUDES`; `systemctl show` for the unit's
-  reload command; and the `test` and `reload` settings under `/bin/sh -e`.
+  reload command; the `test` and `reload` settings under `/bin/sh -e`; and, for
+  `relocate`, each affected instance's derived test and reload commands.
 - **Connects** over TLS, after a reload, to every address and port the file is
   served on, a `*` virtual host at the loopback and each local IPv4 address. It
   compares the certificate served with the new one and verifies nothing else.

@@ -3,7 +3,7 @@ module github.com/easyssl-io/easyssl-plugins/generic-cli
 go 1.26.10
 
 require (
-	github.com/easyssl-io/easyssl-contract v0.1.0
+	github.com/easyssl-io/easyssl-contract v0.2.0
 	github.com/easyssl-io/easyssl-plugins/internal v0.0.1
 )
 
