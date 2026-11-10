@@ -4,7 +4,7 @@ Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>
 
 ## Unreleased
 
-Built against `easyssl-contract` 0.1.1.
+Built against `easyssl-contract` 0.2.0.
 
 - A certificate under another ACME client's directory (certbot's
   `/etc/letsencrypt`, acme.sh, dehydrated, lego) is no longer refused by this

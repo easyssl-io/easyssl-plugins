@@ -1,5 +1,5 @@
 {
-  "contractVersion": "0.1.1",
+  "contractVersion": "0.2.0",
   "version": "0.0.0",
   "description": {
     "en": "Installs Certificates into nginx. It finds the certificates every running nginx serves, and installs a new one by writing the files, testing the configuration with `nginx -t`, reloading only when that passes, and checking that nginx then serves it. It runs as root on the host: whoever can edit a Target's settings can have it run any command and write any file there.",
