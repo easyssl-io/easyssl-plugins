@@ -317,7 +317,7 @@ const reloadWait = 10 * time.Second
 
 // errStopped is a master that exited during the reload, which is how httpd
 // answers a configuration it cannot load.
-var errStopped = errors.New("Apache stopped")
+var errStopped = errors.New("the Apache master stopped")
 
 // The steps relocate runs against a master, variables so the tests, which run
 // no Apache, can stand in for them.
