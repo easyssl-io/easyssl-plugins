@@ -16,8 +16,8 @@
 # declarations, and each build's SHA-256. A Server carries that file, so its
 # Marketplace lists every release with what it declared, and a host's build
 # with one of those digests is that release. The first release recorded this
-# way also records the earlier tags, without digests, since their bytes were
-# never published. The file is committed and that commit tagged.
+# way also records the earlier tags, rebuilt for their digests. The file is
+# committed and that commit tagged.
 #
 # Pushing and publishing are left to the caller:
 #

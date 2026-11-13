@@ -34,7 +34,7 @@ expect 1 "a directory that is not a Plugin" scripts/release.sh internal 0.901.0
 expect 1 "a version CHANGELOG.md has no entry for" scripts/release.sh generic-cli 0.901.0
 grep -q 'CHANGELOG.md has no' "$work/out" || { echo "FAIL: the refusal does not name CHANGELOG.md"; fail=1; }
 # A release tagged before releases.json existed, which the first recorded
-# release records too, without builds.
+# release records too, rebuilt for its digests.
 git tag generic-cli/v0.900.0
 entry 0.901.0
 expect 0 "a release" scripts/release.sh generic-cli 0.901.0
@@ -57,8 +57,8 @@ expect 1 "a working tree with changes" scripts/release.sh generic-cli 0.901.1
 git checkout -q README.md
 expect 0 "a second release" scripts/release.sh generic-cli 0.901.1
 [ "$(jq -r '[.[].version] | join(" ")' "$records")" = "0.901.1 0.901.0 0.900.0" ] || { echo "FAIL: releases are not newest first: $(jq -c '[.[].version]' "$records")"; fail=1; }
-[ "$(jq '.[2] | has("builds")' "$records")" = false ] && [ "$(jq '.[2].declarations | length > 0' "$records")" = true ] ||
-  { echo "FAIL: the earlier tag is not recorded with its declarations and without builds"; fail=1; }
+[ "$(jq '.[2].builds | length' "$records")" = 2 ] && [ "$(jq '.[2].declarations | length > 0' "$records")" = true ] ||
+  { echo "FAIL: the earlier tag is not recorded with its declarations and builds"; fail=1; }
 
 # Publishing, against a throwaway remote and a stand-in gh that records what it
 # was asked: nothing is pushed or published for real.
@@ -76,4 +76,10 @@ for f in generic-cli-linux-amd64 generic-cli-linux-arm64 SHA256SUMS generic-cli.
 done
 [ "$(cut -d' ' -f1 "$work/published/SHA256SUMS" | sort | tr '\n' ' ')" = "$(jq -r '.[0].builds[].sha256' "$records" | sort | tr '\n' ' ')" ] ||
   { echo "FAIL: SHA256SUMS does not list the recorded digests"; fail=1; }
+# The earlier tag has no releases.json of its own; the record at HEAD is used.
+rm -f "$work/published"/*
+git push -q origin generic-cli/v0.900.0
+expect 0 "publishing a release tagged before releases.json" env PATH="$work/bin:$PATH" scripts/publish-release.sh generic-cli 0.900.0
+[ "$(cut -d' ' -f1 "$work/published/SHA256SUMS" | sort | tr '\n' ' ')" = "$(jq -r '.[2].builds[].sha256' "$records" | sort | tr '\n' ' ')" ] ||
+  { echo "FAIL: the earlier release is not published with its recorded digests"; fail=1; }
 exit "$fail"

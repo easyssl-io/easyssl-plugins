@@ -4,13 +4,14 @@
 #
 #   scripts/publish-release.sh apache 0.3.0
 #
-# Builds the tag again, in a worktree of its own, refuses unless every build's
-# SHA-256 is the one `<PLUGIN>/releases.json` recorded at that tag, and creates
+# Builds the tag again, in a worktree of its own, refuses unless every build's SHA-256 is the one `<PLUGIN>/releases.json`
+# records, and creates
 # the GitHub Release `<PLUGIN>/v<VERSION>` with the builds, a SHA256SUMS file
 # and the `describe` answer, its notes the version's CHANGELOG.md entry. A
 # Server pinned at the tag downloads these builds and checks them against the
-# same record, so every installation hands out the bytes released. A mismatch
-# means another Go toolchain than the release's; publish with that one.
+# same record, so every installation hands out the bytes released. The record
+# is read at the tag, or, for a release tagged before releases.json existed and
+# recorded by the first release after it, at HEAD.
 #
 # Only finished releases are published; a development build is served by the
 # Server that built it. Needs gh, signed in with permission to create releases,
@@ -23,12 +24,14 @@ tag="$plugin/v$version"
 command -v jq >/dev/null && command -v gh >/dev/null || { echo "gh and jq are needed" >&2; exit 2; }
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "$tag is not tagged here" >&2; exit 1; }
 [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ] || { echo "$tag is not pushed: git push origin $tag" >&2; exit 1; }
-want=$(git show "$tag:$plugin/releases.json" 2>/dev/null | jq -c --arg v "$version" '.[] | select(.version == $v) | .builds // empty')
-[ -n "$want" ] || { echo "$plugin/releases.json at $tag records no builds for $version" >&2; exit 1; }
-
 . scripts/lib/build.sh
 work=$(mktemp -d)
 trap 'git worktree remove --force "$work/tree" 2>/dev/null; rm -rf "$work"' EXIT
+git show "$tag:$plugin/releases.json" >"$work/records.json" 2>/dev/null &&
+  [ -n "$(jq -c --arg v "$version" '.[] | select(.version == $v)' "$work/records.json")" ] ||
+  git show "HEAD:$plugin/releases.json" >"$work/records.json" 2>/dev/null || true
+want=$(jq -c --arg v "$version" '.[] | select(.version == $v) | .builds // empty' "$work/records.json" 2>/dev/null)
+[ -n "$want" ] || { echo "$plugin/releases.json records no builds for $version, at $tag or at HEAD" >&2; exit 1; }
 git worktree add -q --detach "$work/tree" "$tag"
 mkdir "$work/out"
 got=$(build_release "$work/tree/$plugin" "$version" "$work/out")
@@ -36,7 +39,6 @@ if [ "$(printf '%s' "$got" | jq -S -c .)" != "$(printf '%s' "$want" | jq -S -c .
   echo "the builds of $tag do not match what it recorded" >&2
   echo "  recorded: $want" >&2
   echo "  built:    $got" >&2
-  echo "Publish with the Go toolchain the release was built with ($(go env GOVERSION) here)." >&2
   exit 1
 fi
 describe_at "$work/tree/$plugin" "$version" >"$work/out/$plugin.describe.json"
