@@ -2,6 +2,12 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
+## 0.2.1
+
+Built against `easyssl-contract` 0.2.0. No change to the Plugin: the first
+release recorded in `releases.json`, with the SHA-256 of each platform's
+build, and published as a GitHub Release, as its earlier releases now are too.
+
 ## 0.2.0
 
 Built against `easyssl-contract` 0.2.0.
