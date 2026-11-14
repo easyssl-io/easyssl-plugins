@@ -1,5 +1,90 @@
 [
   {
+    "version": "0.2.6",
+    "date": "2026-11-14",
+    "contractVersion": "0.2.3",
+    "description": {
+      "en": "Installs Certificates into nginx. It finds the certificates every running nginx serves, and installs a new one by writing the files, testing the configuration with `nginx -t`, reloading only when that passes, and checking that nginx then serves it. It runs as root on the host: whoever can edit a Target's settings can have it run any command and write any file there.",
+      "es": "Instala Certificados en nginx. Encuentra los certificados que sirve cada nginx en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración con `nginx -t`, recargando solo cuando la prueba pasa, y comprobando que nginx lo sirve después. Se ejecuta como root en el host: quien pueda editar la configuración de un Destino puede hacer que ejecute cualquier comando y escriba cualquier archivo allí."
+    },
+    "declarations": [
+      {
+        "key": "ssl_certificate",
+        "label": {
+          "en": "ssl_certificate"
+        },
+        "description": {
+          "en": "The file nginx reads the Certificate from, written as the Certificate followed by its chain. A discovered Target names the file nginx actually loads, with symlinks followed.",
+          "es": "El archivo del que nginx lee el Certificado, escrito como el Certificado seguido de su cadena. Un Destino descubierto nombra el archivo que nginx realmente carga, con los enlaces simbólicos resueltos."
+        },
+        "type": "path",
+        "default": "",
+        "required": true,
+        "summary": true,
+        "identity": true
+      },
+      {
+        "key": "ssl_certificate_key",
+        "label": {
+          "en": "ssl_certificate_key"
+        },
+        "description": {
+          "en": "The file nginx reads the private key from.\n\nBoth files keep everything about the files they replace except their content: owner, mode, ACLs and other extended attributes, SELinux label included. A new file is `0600`.",
+          "es": "El archivo del que nginx lee la clave privada.\n\nAmbos archivos conservan todo lo de los archivos que reemplazan salvo su contenido: propietario, modo, ACL y demás atributos extendidos, incluida la etiqueta SELinux. Un archivo nuevo es `0600`."
+        },
+        "type": "path",
+        "default": "",
+        "required": true,
+        "summary": false,
+        "identity": false
+      },
+      {
+        "key": "test",
+        "label": {
+          "en": "Test command",
+          "es": "Comando de prueba"
+        },
+        "description": {
+          "en": "Checks the configuration after the files are written and before the reload. When it fails, the previous files are put back and nothing is reloaded. A discovered Target names the instance's own binary and configuration.",
+          "es": "Comprueba la configuración después de escribir los archivos y antes de la recarga. Cuando falla, se restauran los archivos anteriores y no se recarga nada. Un Destino descubierto nombra el binario y la configuración propios de la instancia."
+        },
+        "type": "command",
+        "default": "nginx -t",
+        "required": true,
+        "summary": false,
+        "identity": false
+      },
+      {
+        "key": "reload",
+        "label": {
+          "en": "Reload command",
+          "es": "Comando de recarga"
+        },
+        "description": {
+          "en": "Makes nginx load the new files. A discovered Target names the command its instance answers to: its systemd unit's reload, its OpenRC service's, or the signal.",
+          "es": "Hace que nginx cargue los archivos nuevos. Un Destino descubierto nombra el comando al que responde su instancia: la recarga de su unidad de systemd, la de su servicio de OpenRC, o la señal."
+        },
+        "type": "command",
+        "default": "nginx -s reload",
+        "required": true,
+        "summary": false,
+        "identity": false
+      }
+    ],
+    "builds": [
+      {
+        "os": "linux",
+        "arch": "amd64",
+        "sha256": "608a93d2332f7cd3c9f58b5dd715c71f2a5f3389c5c3d0ead45123cd37ef25b8"
+      },
+      {
+        "os": "linux",
+        "arch": "arm64",
+        "sha256": "17c93eb21c6dd5c6c00dc5603614205cf4f6abd8be719a2c4dbf7ad722fc8bfc"
+      }
+    ]
+  },
+  {
     "version": "0.2.5",
     "date": "2026-11-14",
     "contractVersion": "0.2.3",
