@@ -2,6 +2,12 @@
 
 Every release of the `apache` Plugin, newest first, each tagged `apache/v<version>`.
 
+## 0.2.5
+
+Built against `easyssl-contract` 0.2.3. A move out of certbot's directory
+leaves the relocate request's note on a line of its own above each run of
+consecutive lines it changes.
+
 ## 0.2.4
 
 Built against `easyssl-contract` 0.2.2. The leaf and chain PEM of all the

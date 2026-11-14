@@ -2,6 +2,12 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
+## 0.2.5
+
+Built against `easyssl-contract` 0.2.3. A move out of certbot's directory
+leaves the relocate request's note at the end of each line it changes, after
+the comment already there joined with " - ", or as a comment of its own.
+
 ## 0.2.4
 
 Built against `easyssl-contract` 0.2.2. The leaf and chain PEM of all the
