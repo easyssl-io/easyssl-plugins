@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/easyssl-io/easyssl-contract/plugincontract"
+	"github.com/easyssl-io/easyssl-plugins/internal/relocation"
 )
 
 // certbotTree is a host whose nginx reads a certbot lineage three ways: an
@@ -304,5 +305,27 @@ func TestLex(t *testing.T) {
 	}
 	if tk := lex([]byte(src))[4]; tk.line != 2 {
 		t.Errorf("line %d, want 2", tk.line)
+	}
+}
+
+// A quoted argument that starts on the changed line may end on a later one,
+// which nginx accepts; the note then goes after it, at the end of the line
+// where it ends, rather than inside it or past the line's end.
+func TestNoteAfterAQuotedArgumentSpanningLines(t *testing.T) {
+	conf := []byte("ssl_certificate /tmp/cert.pem; set $x \"first\nsecond\";\nssl_certificate_key /tmp/key.pem;\n")
+	toks := lex(conf)
+	var cert token
+	for _, tk := range toks {
+		if tk.value == "/tmp/cert.pem" {
+			cert = tk
+		}
+	}
+	got, err := relocation.Apply(conf, []relocation.Edit{noteEdit(conf, toks, cert, "a note")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "ssl_certificate /tmp/cert.pem; set $x \"first\nsecond\"; # a note\nssl_certificate_key /tmp/key.pem;\n"
+	if string(got) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }

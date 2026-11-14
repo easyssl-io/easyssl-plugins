@@ -262,16 +262,21 @@ func edits(refs []plugincontract.Reference, to map[string]string, note string) (
 // is the text after the line's last token, which the lexer skipped, starting
 // with `#`.
 func noteEdit(b []byte, toks []token, a token, note string) relocation.Edit {
+	// The note goes after every token that starts on the line, and a quoted
+	// token may run onto later lines; the line then ends where the last such
+	// token does, found again until no token starting before it reaches past.
 	lineStart := strings.LastIndexByte(string(b[:a.start]), '\n') + 1
-	lineEnd := len(b)
-	if i := strings.IndexByte(string(b[a.end:]), '\n'); i >= 0 {
-		lineEnd = a.end + i
-	}
 	last := a.end
-	for _, t := range toks {
-		if t.start >= lineStart && t.start < lineEnd && t.end > last {
-			last = t.end
+	lineEnd := endOfLine(b, last)
+	for grew := true; grew; {
+		grew = false
+		for _, t := range toks {
+			if t.start >= lineStart && t.start < lineEnd && t.end > last {
+				last = t.end
+				grew = true
+			}
 		}
+		lineEnd = endOfLine(b, last)
 	}
 	at := lineEnd
 	for at > last && (b[at-1] == ' ' || b[at-1] == '\t' || b[at-1] == '\r') {
@@ -282,6 +287,15 @@ func noteEdit(b []byte, toks []token, a token, note string) relocation.Edit {
 		text = " - " + note
 	}
 	return relocation.Edit{Start: at, End: at, Text: text}
+}
+
+// endOfLine is where the line holding position at ends: its newline, or the
+// end of b.
+func endOfLine(b []byte, at int) int {
+	if i := strings.IndexByte(string(b[at:]), '\n'); i >= 0 {
+		return at + i
+	}
+	return len(b)
 }
 
 // quoted is a path as an nginx argument replacing one that began with first:
