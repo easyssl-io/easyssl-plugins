@@ -2,6 +2,11 @@
 
 Every release of the `generic-cli` Plugin, newest first, each tagged `generic-cli/v<version>`.
 
+## 0.2.6
+
+Built against `easyssl-contract` 0.2.0. No change to the Plugin: released
+because the code the Plugins share changed.
+
 ## 0.2.5
 
 Built against `easyssl-contract` 0.2.0. No change to the Plugin: released
