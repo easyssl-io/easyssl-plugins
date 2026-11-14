@@ -230,8 +230,9 @@ func destinationProblem(p l10n.Printer, to string) string {
 }
 
 // edits finds each reference's argument at its line (argAt) and replaces it,
-// keeping how it was quoted, and leaves note as a comment line above each line
-// it changes (noteLine). A file is read and written once, through its
+// keeping how it was quoted, and leaves note as a comment line above each run
+// of consecutive lines it changes (noteLine): one note over a certificate and
+// its key reads as one, two read as noise. A file is read and written once, through its
 // symlinks (relocation.Real), however many references it holds.
 func edits(refs []plugincontract.Reference, to map[string]string, note string) ([]hostfile.Change, error) {
 	byFile := map[string][]plugincontract.Reference{}
@@ -259,7 +260,7 @@ func edits(refs []plugincontract.Reference, to map[string]string, note string) (
 			}
 		}
 		var es []relocation.Edit
-		noted := map[int]bool{}
+		changed := map[int]bool{}
 		for _, r := range byFile[f] {
 			var v string
 			var a, b int
@@ -274,9 +275,11 @@ func edits(refs []plugincontract.Reference, to map[string]string, note string) (
 			}
 			at := starts[r.Line-1]
 			es = append(es, relocation.Edit{Start: at + a, End: at + b, Text: quoted(to[r.Value], old[at+a])})
-			if note != "" && !noted[r.Line] {
-				noted[r.Line] = true
-				es = append(es, noteLine(old, at, note))
+			changed[r.Line] = true
+		}
+		for line := range changed {
+			if note != "" && !changed[line-1] {
+				es = append(es, noteLine(old, starts[line-1], note))
 			}
 		}
 		updated, err := relocation.Apply(old, es)
