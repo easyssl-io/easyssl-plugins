@@ -2,6 +2,12 @@
 
 Every release of the `apache` Plugin, newest first, each tagged `apache/v<version>`.
 
+## 0.2.6
+
+Built against `easyssl-contract` 0.2.3. The note a move leaves can no longer
+end in a backslash, which Apache would read as continuing the comment into
+the directive below it.
+
 ## 0.2.5
 
 Built against `easyssl-contract` 0.2.3. A move out of certbot's directory

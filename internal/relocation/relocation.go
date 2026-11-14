@@ -139,6 +139,8 @@ func Note(s string) string {
 			s = s[:len(s)-1]
 		}
 	}
-	return strings.TrimSpace(strings.TrimRight(strings.TrimSpace(s), "\\"))
+	// The whole trailing run of blanks and backslashes goes at once: trimming
+	// one kind and then the other can uncover a backslash behind a blank.
+	return strings.TrimSpace(strings.TrimRight(s, " \t\\"))
 }
 

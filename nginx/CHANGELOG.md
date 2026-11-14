@@ -2,6 +2,13 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
+## 0.2.6
+
+Built against `easyssl-contract` 0.2.3. The note a move leaves no longer
+fails the move when a quoted argument starting on the changed line ends on a
+later one; it goes at the end of the line where that argument ends. A note
+can no longer end in a backslash.
+
 ## 0.2.5
 
 Built against `easyssl-contract` 0.2.3. A move out of certbot's directory
