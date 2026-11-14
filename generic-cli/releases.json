@@ -1,5 +1,44 @@
 [
   {
+    "version": "0.2.6",
+    "date": "2026-11-14",
+    "contractVersion": "0.2.0",
+    "description": {
+      "en": "Installs a Certificate on a host by running a command you write. It knows nothing about any particular service: whatever can be done from a shell on that host, such as copying files into place, reloading a daemon, or calling another tool, this Plugin can do. A service that has a Plugin of its own is better served by that one. It runs as root on the host, so whoever can edit a Target's command can run anything there as root.",
+      "es": "Instala un Certificado en un host ejecutando un comando que tú escribes. No sabe nada de ningún servicio en particular: todo lo que se pueda hacer desde un shell en ese host, como copiar archivos a su lugar, recargar un daemon o llamar a otra herramienta, este Plugin lo puede hacer. A un servicio que tiene su propio Plugin le conviene más ese. Se ejecuta como root en el host, así que quien pueda editar el comando de un Destino puede ejecutar allí cualquier cosa como root."
+    },
+    "declarations": [
+      {
+        "key": "install",
+        "label": {
+          "en": "Install command",
+          "es": "Comando de instalación"
+        },
+        "description": {
+          "en": "The command that installs a new Certificate on this Target and reloads the service that uses it. Before running it, easySSL writes the material to temporary files and passes their paths in the environment, deleting them once the command returns. Copying whichever of them the service reads to where it expects them, and reloading it, is this command's job.\n\nIt runs as one `/bin/sh -e` script: a line that fails ends it and fails the Deployment, so a failure cannot hide behind a later line that exits 0. Append `|| true` to a line that is allowed to fail. A command that must fail the Deployment goes on a line of its own: `-e` does not act on a failure on the left of `&&` or `||`, or inside a pipeline, so `cp a b && reload; echo done` exits 0 when `cp` fails.\n\nIt runs inside the Agent service's private `/tmp`: a file this command writes there is invisible to every other process on the host, and one another process put in `/tmp` is invisible here. Hand a file to another daemon somewhere else.\n\nIt runs inside the Agent service too, so a process it leaves running ends when the Agent restarts or is updated. Start or reload a long-running service through the host's service manager, such as `systemctl reload nginx`, never from this command directly.\n\n`EASYSSL_FULLCHAIN_PATH`: the Certificate followed by the issuer chain, which is what most servers read.\n`EASYSSL_CERTIFICATE_PATH`: the Certificate alone, without the chain.\n`EASYSSL_CHAIN_PATH`: the issuer chain alone, without the Certificate.\n`EASYSSL_KEY_PATH`: the private key. It is the only one written 0600, and it exists only while the command runs.",
+          "es": "El comando que instala un nuevo Certificado en este Destino y recarga el servicio que lo usa. Antes de ejecutarlo, easySSL escribe el material en archivos temporales y pasa sus rutas en el entorno, y los borra cuando el comando termina. Copiar los que el servicio lee a donde los espera, y recargarlo, es tarea de este comando.\n\nSe ejecuta como un solo script de `/bin/sh -e`: una línea que falla lo termina y hace fallar el Despliegue, así que un fallo no puede esconderse tras una línea posterior que sale con 0. Agrega `|| true` a una línea que puede fallar. Un comando que debe hacer fallar el Despliegue va en una línea propia: `-e` no actúa ante un fallo a la izquierda de `&&` o `||`, ni dentro de una tubería, así que `cp a b && reload; echo done` sale con 0 cuando `cp` falla.\n\nSe ejecuta dentro del `/tmp` privado del servicio del Agente: un archivo que este comando escribe ahí es invisible para cualquier otro proceso del host, y uno que otro proceso puso en `/tmp` es invisible aquí. Entrega un archivo a otro daemon en otro lugar.\n\nTambién se ejecuta dentro del servicio del Agente, así que un proceso que deje en marcha termina cuando el Agente se reinicia o se actualiza. Inicia o recarga un servicio de larga duración mediante el gestor de servicios del host, como `systemctl reload nginx`, nunca directamente desde este comando.\n\n`EASYSSL_FULLCHAIN_PATH`: el Certificado seguido de la cadena del emisor, que es lo que lee la mayoría de los servidores.\n`EASYSSL_CERTIFICATE_PATH`: solo el Certificado, sin la cadena.\n`EASYSSL_CHAIN_PATH`: solo la cadena del emisor, sin el Certificado.\n`EASYSSL_KEY_PATH`: la clave privada. Es el único que se escribe con 0600, y existe solo mientras el comando se ejecuta."
+        },
+        "type": "command",
+        "default": "# easySSL wrote this deployment's material to temporary files and named them here.\n# They are deleted when this script ends. Copy what your service reads, then reload it.\n# This runs with set -e: a line that fails ends the script and fails the\n# Deployment. Append `|| true` to a line that is allowed to fail. A command that\n# must fail the Deployment goes on a line of its own: -e does not act on a\n# failure on the left of && or ||, or inside a pipeline.\necho \"certificate: $EASYSSL_CERTIFICATE_PATH\"\necho \"chain:       $EASYSSL_CHAIN_PATH\"\necho \"fullchain:   $EASYSSL_FULLCHAIN_PATH\"\necho \"key:         $EASYSSL_KEY_PATH\"\n",
+        "required": true,
+        "summary": false,
+        "identity": false
+      }
+    ],
+    "builds": [
+      {
+        "os": "linux",
+        "arch": "amd64",
+        "sha256": "4aac1547906c7f79ec7b978e22b507373c5d4bd5aa906f35422908e396d8eda0"
+      },
+      {
+        "os": "linux",
+        "arch": "arm64",
+        "sha256": "48cb38a341cca8bc2c1bb0864cd90d9840bce41ed968acb897a79b619788b6e7"
+      }
+    ]
+  },
+  {
     "version": "0.2.5",
     "date": "2026-11-14",
     "contractVersion": "0.2.0",
