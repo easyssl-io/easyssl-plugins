@@ -1,5 +1,90 @@
 [
   {
+    "version": "0.2.6",
+    "date": "2026-11-14",
+    "contractVersion": "0.2.3",
+    "description": {
+      "en": "Installs Certificates into the Apache HTTP Server (httpd, apache2). It finds the certificates every running Apache serves, and installs a new one by writing the files, testing the configuration, reloading only when that passes, and checking that the new Certificate is then served. It runs as root on the host: whoever can edit a Target's settings can have it run any command and write any file there.",
+      "es": "Instala Certificados en Apache HTTP Server (httpd, apache2). Encuentra los certificados que sirve cada Apache en ejecución, e instala uno nuevo escribiendo los archivos, probando la configuración, recargando solo cuando la prueba pasa y comprobando que después se sirve el nuevo Certificado. Se ejecuta como root en el host: quien pueda editar la configuración de un Destino puede hacer que ejecute cualquier comando y escriba cualquier archivo allí."
+    },
+    "declarations": [
+      {
+        "key": "SSLCertificateFile",
+        "label": {
+          "en": "SSLCertificateFile"
+        },
+        "description": {
+          "en": "The file Apache reads the Certificate from, written as the Certificate followed by its chain. A discovered Target names the file Apache actually loads, with symlinks followed.",
+          "es": "El archivo del que Apache lee el Certificado, escrito como el Certificado seguido de su cadena. Un Destino descubierto nombra el archivo que Apache realmente carga, con los enlaces simbólicos resueltos."
+        },
+        "type": "path",
+        "default": "",
+        "required": true,
+        "summary": true,
+        "identity": true
+      },
+      {
+        "key": "SSLCertificateKeyFile",
+        "label": {
+          "en": "SSLCertificateKeyFile"
+        },
+        "description": {
+          "en": "The file Apache reads the private key from.\n\nBoth files keep everything about the files they replace except their content: owner, mode, ACLs and other extended attributes, SELinux label included. A new file is `0600`.",
+          "es": "El archivo del que Apache lee la clave privada.\n\nAmbos archivos conservan todo lo de los archivos que reemplazan salvo su contenido: propietario, modo, ACL y demás atributos extendidos, incluida la etiqueta SELinux. Un archivo nuevo es `0600`."
+        },
+        "type": "path",
+        "default": "",
+        "required": true,
+        "summary": false,
+        "identity": false
+      },
+      {
+        "key": "test",
+        "label": {
+          "en": "Test command",
+          "es": "Comando de prueba"
+        },
+        "description": {
+          "en": "Checks the configuration after the files are written and before the reload. When it fails, the previous files are put back and nothing is reloaded. It runs with the environment and the user of the Apache instance that loads the file, and a discovered Target names that instance's own binary and arguments.",
+          "es": "Comprueba la configuración después de escribir los archivos y antes de recargar. Si falla, se restauran los archivos anteriores y no se recarga nada. Se ejecuta con el entorno y el usuario de la instancia de Apache que carga el archivo, y un Destino descubierto nombra el binario y los argumentos de esa instancia."
+        },
+        "type": "command",
+        "default": "apachectl -t",
+        "required": true,
+        "summary": false,
+        "identity": false
+      },
+      {
+        "key": "reload",
+        "label": {
+          "en": "Reload command",
+          "es": "Comando de recarga"
+        },
+        "description": {
+          "en": "Makes Apache load the new files. A discovered Target names the command its instance answers to: its systemd unit's reload, its OpenRC service's, or a graceful restart of the instance itself.",
+          "es": "Hace que Apache cargue los archivos nuevos. Un Destino descubierto nombra el comando al que responde su instancia: la recarga de su unidad systemd, la de su servicio OpenRC o un reinicio gradual (graceful) de la propia instancia."
+        },
+        "type": "command",
+        "default": "apachectl -k graceful",
+        "required": true,
+        "summary": false,
+        "identity": false
+      }
+    ],
+    "builds": [
+      {
+        "os": "linux",
+        "arch": "amd64",
+        "sha256": "151c58d2e1e7487401ff262fc39ab33484a4119448c009e3994fcc38ec85f61d"
+      },
+      {
+        "os": "linux",
+        "arch": "arm64",
+        "sha256": "33aeedf17d0ec7e1bd504c2f89faf105f88c7dd50816ac1123ffcf0e60d2e3b9"
+      }
+    ]
+  },
+  {
     "version": "0.2.5",
     "date": "2026-11-14",
     "contractVersion": "0.2.3",
