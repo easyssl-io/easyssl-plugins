@@ -127,6 +127,34 @@ func TestRelocateRewritesTheConfirmedLines(t *testing.T) {
 	}
 }
 
+// The note lands once on each changed line: joined with " - " after the
+// comment already there, as a comment of its own where there is none, and once
+// on a line holding two of the changed directives. A second line in the note
+// never reaches the file.
+func TestRelocateLeavesTheNoteOnEachChangedLine(t *testing.T) {
+	root, _ := certbotTree(t)
+	conf := root + "/nginx.conf"
+	in := commandsLogged(load(t, 100, conf), root, 0)
+	req := moveOut(t, root, in)
+	req.Note = "now managed by easySSL\nssl_certificate /etc/evil.pem;"
+	if out, err := runRelocate(t, req, nil, in); err != nil {
+		t.Fatalf("relocate: %v\n%s", err, out)
+	}
+	want := "ssl_certificate_key '" + root + "/easyssl/a/key.pem'; } # now managed by easySSL\n"
+	if got := content(t, conf); !strings.Contains(got, want) || strings.Count(got, "now managed by easySSL") != 1 || strings.Contains(got, "evil") {
+		t.Errorf("nginx.conf:\n%s\nwant one note, ending the line with both directives:\n%s", got, want)
+	}
+	want = "    ssl_certificate     " + root + "/easyssl/a/certificate.pem;   # relative to nginx.conf - now managed by easySSL\n" +
+		"    ssl_certificate_key " + root + "/easyssl/a/key.pem; # now managed by easySSL\n"
+	if got := content(t, root+"/avail/a.conf"); !strings.Contains(got, want) {
+		t.Errorf("the included file:\n%s\nwant:\n%s", got, want)
+	}
+	// The configuration still reads as before: the same four references.
+	if targets, _ := analyze([]instance{load(t, 100, conf)}); len(targets) != 1 || len(targets[0].References) != 4 {
+		t.Fatalf("after the move: %+v", targets)
+	}
+}
+
 // Only the confirmed references change: one the configuration holds and the
 // list does not, or the other way round, refuses the whole move.
 func TestRelocateRefusesWhatWasNotConfirmed(t *testing.T) {
