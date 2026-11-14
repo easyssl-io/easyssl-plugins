@@ -2,6 +2,7 @@ package pemfile
 
 import (
 	"crypto/x509"
+	"strings"
 	"testing"
 
 	"github.com/easyssl-io/easyssl-plugins/internal/testkeys"
@@ -56,5 +57,32 @@ func TestLeafAndChain(t *testing.T) {
 	}
 	if _, c := LeafAndChain([]byte(long)); len(Blocks([]byte(c))) != maxChain {
 		t.Errorf("a long chain reported %d certificates, want %d", len(Blocks([]byte(c))), maxChain)
+	}
+}
+
+func TestBudget(t *testing.T) {
+	leaf, chain := strings.Repeat("l", 10), strings.Repeat("c", 10)
+	mk := func(n int) ([]string, []string, []PEMPair) {
+		ls, cs := make([]string, n), make([]string, n)
+		pairs := make([]PEMPair, n)
+		for i := range n {
+			ls[i], cs[i] = leaf, chain
+			pairs[i] = PEMPair{Leaf: &ls[i], Chain: &cs[i]}
+		}
+		return ls, cs, pairs
+	}
+	ls, cs, pairs := mk(3)
+	Budget(pairs, 60)
+	if ls[2] != leaf || cs[2] != chain {
+		t.Errorf("within the budget something was dropped: %q %q", ls, cs)
+	}
+	Budget(pairs, 45)
+	if cs[2] != "" || cs[1] != "" || cs[0] != chain || ls[2] != leaf {
+		t.Errorf("over the budget, chains %q leaves %q, want the last two chains dropped first", cs, ls)
+	}
+	ls, cs, pairs = mk(3)
+	Budget(pairs, 15)
+	if strings.Join(cs, "") != "" || ls[0] != leaf || ls[1] != "" || ls[2] != "" {
+		t.Errorf("chains %q leaves %q, want every chain then the last leaves dropped", cs, ls)
 	}
 }
