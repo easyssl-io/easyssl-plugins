@@ -1,6 +1,6 @@
 module github.com/easyssl-io/easyssl-plugins/nginx
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/easyssl-io/easyssl-contract v0.2.0
