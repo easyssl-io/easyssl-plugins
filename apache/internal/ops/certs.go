@@ -22,6 +22,9 @@ type certInfo struct {
 	sans     []string
 	sanErr   error
 	keyType  string
+	// leafPEM and chainPEM are the leaf and the certificates after it in the
+	// file, which mod_ssl sends in that order.
+	leafPEM, chainPEM string
 }
 
 func readCert(path string) (certInfo, error) {
@@ -35,6 +38,7 @@ func readCert(path string) (certInfo, error) {
 	}
 	sum := sha256.Sum256(der)
 	ci := certInfo{der: der, sha256: hex.EncodeToString(sum[:])}
+	ci.leafPEM, ci.chainPEM = pemfile.LeafAndChain(b)
 	ci.leaf, ci.parseErr = x509.ParseCertificate(der)
 	if ci.parseErr != nil {
 		ci.sanErr = ci.parseErr

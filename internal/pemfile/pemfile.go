@@ -48,6 +48,34 @@ func LeafDER(b []byte) ([]byte, error) {
 	return nil, ErrNoCertificate
 }
 
+// maxChain bounds how many certificates after the leaf LeafAndChain reports:
+// a file on the host can hold anything, and a served chain longer than this
+// is already wrong.
+const maxChain = 10
+
+// LeafAndChain is the first certificate in b and the certificates after it,
+// each re-encoded as plain PEM, so text outside the blocks and PEM headers
+// are not reported; blocks that are not certificates are skipped. Both are
+// empty when b holds no certificate, and the chain holds at most maxChain.
+func LeafAndChain(b []byte) (leaf, chain string) {
+	var out strings.Builder
+	n := 0
+	for _, blk := range Blocks(b) {
+		if blk.Type != "CERTIFICATE" {
+			continue
+		}
+		enc := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: blk.Bytes}))
+		switch {
+		case leaf == "":
+			leaf = enc
+		case n < maxChain:
+			out.WriteString(enc)
+			n++
+		}
+	}
+	return leaf, out.String()
+}
+
 // ParseLeaf parses the first block of a Deployment's certificate PEM, which
 // must be a certificate.
 func ParseLeaf(certificatePEM string) (*x509.Certificate, error) {

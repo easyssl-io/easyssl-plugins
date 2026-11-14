@@ -7,8 +7,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -22,6 +24,7 @@ import (
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
 	"github.com/easyssl-io/easyssl-contract/plugincontract"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // The cases under testdata/cases are what httpd 2.4 itself reported for the
@@ -105,6 +108,12 @@ func TestDiscoverCases(t *testing.T) {
 			// Shown beside the certificate's path, so it does not repeat it.
 			if strings.Contains(w.In(l10n.English), "`"+s[SettingCertificate]+"`") {
 				t.Errorf("a warning of %s names it: %s", s[SettingCertificate], w.In(l10n.English))
+			}
+		}
+		if c := tg.Certificate; c != nil {
+			der, err := pemfile.LeafDER([]byte(c.CertificatePem))
+			if sum := sha256.Sum256(der); err != nil || hex.EncodeToString(sum[:]) != c.SHA256 {
+				t.Errorf("%s certificatePem does not hash to its sha256 %s", s[SettingCertificate], c.SHA256)
 			}
 		}
 		if len(tg.ExtraData) != 0 || tg.ExtraData == nil {
