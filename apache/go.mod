@@ -3,7 +3,7 @@ module github.com/easyssl-io/easyssl-plugins/apache
 go 1.26.11
 
 require (
-	github.com/easyssl-io/easyssl-contract v0.2.0
+	github.com/easyssl-io/easyssl-contract v0.2.2
 	github.com/easyssl-io/easyssl-plugins/internal v0.0.1
 )
 

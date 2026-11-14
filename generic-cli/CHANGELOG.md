@@ -2,6 +2,12 @@
 
 Every release of the `generic-cli` Plugin, newest first, each tagged `generic-cli/v<version>`.
 
+## 0.2.3
+
+Built against `easyssl-contract` 0.2.0. No change to the Plugin: released
+because the code the Plugins share changed, so this build is a release
+rather than a development build.
+
 ## 0.2.2
 
 Built against `easyssl-contract` 0.2.0, with Go 1.26.11, which fixes

@@ -35,3 +35,26 @@ func TestEncryptedKey(t *testing.T) {
 		}
 	}
 }
+
+func TestLeafAndChain(t *testing.T) {
+	k := testkeys.Key(t, "ec")
+	leaf, i1, i2 := testkeys.Cert(t, k, "leaf.test"), testkeys.Cert(t, k, "i1.test"), testkeys.Cert(t, k, "i2.test")
+	in := "text before\n" + string(leaf) + string(testkeys.PEM(t, k)) + string(i1) + "between\n" + string(i2)
+	gotLeaf, gotChain := LeafAndChain([]byte(in))
+	if gotLeaf != string(leaf) {
+		t.Errorf("leaf %q, want the first certificate alone", gotLeaf)
+	}
+	if gotChain != string(i1)+string(i2) {
+		t.Errorf("chain %q, want the two certificates after the leaf, without the key or the text", gotChain)
+	}
+	if l, c := LeafAndChain(testkeys.PEM(t, k)); l != "" || c != "" {
+		t.Errorf("a file with no certificate gave %q, %q", l, c)
+	}
+	long := string(leaf)
+	for range maxChain + 3 {
+		long += string(i1)
+	}
+	if _, c := LeafAndChain([]byte(long)); len(Blocks([]byte(c))) != maxChain {
+		t.Errorf("a long chain reported %d certificates, want %d", len(Blocks([]byte(c))), maxChain)
+	}
+}

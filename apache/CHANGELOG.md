@@ -2,6 +2,14 @@
 
 Every release of the `apache` Plugin, newest first, each tagged `apache/v<version>`.
 
+## 0.2.3
+
+Built against `easyssl-contract` 0.2.2. A discovered certificate now carries
+its leaf (`certificatePem`) and the certificates after it in the certificate
+file (`chainPem`), so the Server can describe a certificate easySSL did not
+request. A chain kept in a separate `SSLCertificateChainFile` is not
+reported yet.
+
 ## 0.2.2
 
 Built against `easyssl-contract` 0.2.0, with Go 1.26.11, which fixes

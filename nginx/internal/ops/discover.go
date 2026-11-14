@@ -130,6 +130,9 @@ type Certificate struct {
 	// SHA256 is the hex SHA-256 of the leaf's DER, empty when the file holds
 	// no certificate this could read.
 	SHA256 string
+	// LeafPEM and ChainPEM are the leaf and the certificates after it in the
+	// file, which nginx sends in that order; empty with SHA256.
+	LeafPEM, ChainPEM string
 
 	Refs []CertRef
 }
@@ -192,6 +195,9 @@ func analyze(found []instance) ([]DiscoveredTarget, []l10n.Text) {
 				domains = []string{}
 			}
 			t.Certificate = &DiscoveredCertificate{Domains: domains, KeyType: c.KeyType, SHA256: c.SHA256}
+			if c.SHA256 != "" {
+				t.Certificate.CertificatePem, t.Certificate.ChainPem = c.LeafPEM, c.ChainPEM
+			}
 		}
 		targets = append(targets, t)
 	}
@@ -661,6 +667,9 @@ func group(refs []CertRef) []Certificate {
 		})
 		c := Certificate{Path: path, Key: rs[0].KeyResolved, Refs: rs}
 		c.SANs, c.SANErr = sans(path)
+		if b, err := os.ReadFile(path); err == nil {
+			c.LeafPEM, c.ChainPEM = pemfile.LeafAndChain(b)
+		}
 		if der, err := leafDER(path); err == nil {
 			sum := sha256.Sum256(der)
 			c.SHA256 = hex.EncodeToString(sum[:])

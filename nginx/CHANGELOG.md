@@ -2,6 +2,13 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
+## 0.2.3
+
+Built against `easyssl-contract` 0.2.2. A discovered certificate now carries
+its leaf (`certificatePem`) and the certificates after it in the file
+(`chainPem`), so the Server can describe a certificate easySSL did not
+request.
+
 ## 0.2.2
 
 Built against `easyssl-contract` 0.2.0, with Go 1.26.11, which fixes

@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/easyssl-io/easyssl-contract/l10n"
 	"github.com/easyssl-io/easyssl-contract/l10n/l10ncheck"
 	"github.com/easyssl-io/easyssl-contract/plugincontract"
+	"github.com/easyssl-io/easyssl-plugins/internal/pemfile"
 )
 
 // One host with every configuration case that parsing alone decides, each named
@@ -263,6 +265,11 @@ func TestDiscoverCases(t *testing.T) {
 			sum := sha256.Sum256(der)
 			if c := got[ssl+name].Certificate; c == nil || c.SHA256 != hex.EncodeToString(sum[:]) {
 				t.Errorf("%s fingerprint %+v, want the leaf's SHA-256", name, c)
+			}
+			if c := got[ssl+name].Certificate; c != nil {
+				if d, err := pemfile.LeafDER([]byte(c.CertificatePem)); err != nil || !bytes.Equal(d, der) {
+					t.Errorf("%s certificatePem %q, want the leaf the fingerprint is of", name, c.CertificatePem)
+				}
 			}
 		}
 		if got[ssl+"dual-rsa.crt"].Certificate.SHA256 == got[ssl+"dual-ec.crt"].Certificate.SHA256 {

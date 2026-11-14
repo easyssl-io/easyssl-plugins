@@ -634,7 +634,11 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 		}
 		if sv.readErr[f.path] == nil {
 			ci := sv.infos[f.path]
-			t.Certificate = &DiscoveredCertificate{Domains: ci.sans, KeyType: ci.keyType, SHA256: ci.sha256}
+			// TODO: report the SSLCertificateChainFile's certificates as the
+			// chain when the certificate file holds only the leaf, since that
+			// deprecated layout sends them from there.
+			t.Certificate = &DiscoveredCertificate{Domains: ci.sans, KeyType: ci.keyType, SHA256: ci.sha256,
+				CertificatePem: ci.leafPEM, ChainPem: ci.chainPEM}
 			if ci.sans == nil {
 				t.Certificate.Domains = []string{}
 			}
