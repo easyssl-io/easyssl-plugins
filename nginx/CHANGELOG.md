@@ -2,6 +2,11 @@
 
 Every release of the `nginx` Plugin, newest first, each tagged `nginx/v<version>`.
 
+## 0.2.2
+
+Built against `easyssl-contract` 0.2.0, with Go 1.26.11, which fixes
+GO-2026-6859 in `net/http`. No change to the Plugin.
+
 ## 0.2.1
 
 Built against `easyssl-contract` 0.2.0. No change to the Plugin: the first
