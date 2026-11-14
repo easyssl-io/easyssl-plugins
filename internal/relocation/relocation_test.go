@@ -59,12 +59,14 @@ func TestApply(t *testing.T) {
 func TestNote(t *testing.T) {
 	for in, want := range map[string]string{
 		`now managed by easySSL; check the other "managed by Certbot" lines`: `now managed by easySSL; check the other "managed by Certbot" lines`,
-		"  first line  \nsecond line":  "first line",
-		"carriage\rreturn":             "carriage",
-		"tab\tand bell\a":               "taband bell",
-		`ends in a continuation \\`:     "ends in a continuation",
-		"":                              "",
-		strings.Repeat("é", 150):        strings.Repeat("é", 100),
+		"  first line  \nsecond line":                                        "first line",
+		"carriage\rreturn":                                                   "carriage",
+		"tab\tand bell\a":                                                    "taband bell",
+		`ends in a continuation \\`:                                          "ends in a continuation",
+		`managed \ \`:                                                        "managed",
+		"blanks and backslashes \\ \t\\\\  ":                                 "blanks and backslashes",
+		"":                                                                   "",
+		strings.Repeat("é", 150):                                             strings.Repeat("é", 100),
 	} {
 		if got := Note(in); got != want {
 			t.Errorf("Note(%q) = %q, want %q", in, got, want)
