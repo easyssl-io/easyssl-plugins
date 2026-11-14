@@ -146,6 +146,29 @@ func configs(t *testing.T, root string) string {
 	return read(t, root+"/httpd.conf") + read(t, root+"/avail/a.conf")
 }
 
+// The note goes on a line of its own above each run of consecutive changed
+// directives, indented as the first is, since Apache reads `#` as a comment
+// only at the start of a line. A second line in the note never reaches the
+// file.
+func TestRelocateLeavesTheNoteAboveEachChangedLine(t *testing.T) {
+	root, m, rd := certbotHost(t)
+	req := moveOut(t, root, m, rd)
+	req.Note = "now managed by easySSL\nSSLEngine off"
+	if out, err := runRelocate(t, root, req, m, rd, nil, nil); err != nil {
+		t.Fatalf("relocate: %v\n%s", err, out)
+	}
+	want := "  ServerName a.test\n  # now managed by easySSL\n  SSLCertificateFile \"" + root + "/easyssl/a/certificate.pem\"\n" +
+		"  SSLCertificateKeyFile '" + root + "/easyssl/a/key.pem'\n"
+	if got := read(t, root+"/httpd.conf"); !strings.Contains(got, want) {
+		t.Errorf("httpd.conf:\n%s\nwant:\n%s", got, want)
+	}
+	want = "  ServerName a.test\n\t# now managed by easySSL\n\tSSLCertificateFile " + root + "/easyssl/a/certificate.pem\n" +
+		"  SSLCertificateKeyFile " + root + "/easyssl/a/key.pem\n"
+	if got := read(t, root+"/avail/a.conf"); !strings.Contains(got, want) || strings.Contains(got, "SSLEngine") {
+		t.Errorf("the included file:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestRelocateRewritesTheConfirmedLines(t *testing.T) {
 	root, m, rd := certbotHost(t)
 	req := moveOut(t, root, m, rd)

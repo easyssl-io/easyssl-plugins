@@ -127,7 +127,7 @@ func relocate(ctx context.Context, p l10n.Printer, req RelocateRequest, found []
 		}
 	}
 
-	changes, err := edits(matched, to)
+	changes, err := edits(matched, to, relocation.Note(req.Note))
 	if err != nil {
 		say(p.T("nginx.relocate.not_found", "Nothing was changed: {error}. Run the command again to see the configuration as it is now.", "error", err))
 		return errFailed
@@ -203,9 +203,10 @@ func destinationProblem(p l10n.Printer, to string) string {
 }
 
 // edits finds each reference's argument in its file and replaces it, keeping
-// how it was quoted. A file is read and written once, through its symlinks
-// (relocation.Real), however many references it holds.
-func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Change, error) {
+// how it was quoted, and leaves note on each line it changes (noteEdit). A
+// file is read and written once, through its symlinks (relocation.Real),
+// however many references it holds.
+func edits(refs []plugincontract.Reference, to map[string]string, note string) ([]hostfile.Change, error) {
 	byFile := map[string][]plugincontract.Reference{}
 	var order []string
 	for _, r := range refs {
@@ -226,6 +227,7 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 		}
 		toks := lex(old)
 		var es []relocation.Edit
+		noted := map[int]bool{}
 		for _, r := range byFile[f] {
 			n := 0
 			for i := range toks {
@@ -235,6 +237,10 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 				}
 				a := toks[i+1]
 				es = append(es, relocation.Edit{Start: a.start, End: a.end, Text: quoted(to[r.Value], old[a.start])})
+				if note != "" && !noted[a.line] {
+					noted[a.line] = true
+					es = append(es, noteEdit(old, toks, a, note))
+				}
 				n++
 			}
 			if n == 0 {
@@ -248,6 +254,34 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 		out = append(out, hostfile.Change{Path: f, Old: old, New: updated})
 	}
 	return out, nil
+}
+
+// noteEdit appends note to the end of the line holding the argument a: after
+// the comment already there, as certbot's nginx plugin leaves "# managed by
+// Certbot", joined with " - ", or as a comment of its own. The comment found
+// is the text after the line's last token, which the lexer skipped, starting
+// with `#`.
+func noteEdit(b []byte, toks []token, a token, note string) relocation.Edit {
+	lineStart := strings.LastIndexByte(string(b[:a.start]), '\n') + 1
+	lineEnd := len(b)
+	if i := strings.IndexByte(string(b[a.end:]), '\n'); i >= 0 {
+		lineEnd = a.end + i
+	}
+	last := a.end
+	for _, t := range toks {
+		if t.start >= lineStart && t.start < lineEnd && t.end > last {
+			last = t.end
+		}
+	}
+	at := lineEnd
+	for at > last && (b[at-1] == ' ' || b[at-1] == '\t' || b[at-1] == '\r') {
+		at--
+	}
+	text := " # " + note
+	if strings.HasPrefix(strings.TrimLeft(string(b[last:at]), " \t"), "#") {
+		text = " - " + note
+	}
+	return relocation.Edit{Start: at, End: at, Text: text}
 }
 
 // quoted is a path as an nginx argument replacing one that began with first:

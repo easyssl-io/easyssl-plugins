@@ -124,7 +124,7 @@ func relocate(ctx context.Context, p l10n.Printer, req RelocateRequest, masters 
 		}
 	}
 
-	changes, err := edits(matched, to)
+	changes, err := edits(matched, to, relocation.Note(req.Note))
 	if err != nil {
 		say(p.T("apache.relocate.not_found", "Nothing was changed: {error}. Run the command again to see the configuration as it is now.", "error", err))
 		return errFailed
@@ -230,9 +230,11 @@ func destinationProblem(p l10n.Printer, to string) string {
 }
 
 // edits finds each reference's argument at its line (argAt) and replaces it,
-// keeping how it was quoted. A file is read and written once, through its
+// keeping how it was quoted, and leaves note as a comment line above each run
+// of consecutive lines it changes (noteLine): one note over a certificate and
+// its key reads as one, two read as noise. A file is read and written once, through its
 // symlinks (relocation.Real), however many references it holds.
-func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Change, error) {
+func edits(refs []plugincontract.Reference, to map[string]string, note string) ([]hostfile.Change, error) {
 	byFile := map[string][]plugincontract.Reference{}
 	var order []string
 	for _, r := range refs {
@@ -258,6 +260,7 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 			}
 		}
 		var es []relocation.Edit
+		changed := map[int]bool{}
 		for _, r := range byFile[f] {
 			var v string
 			var a, b int
@@ -272,6 +275,12 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 			}
 			at := starts[r.Line-1]
 			es = append(es, relocation.Edit{Start: at + a, End: at + b, Text: quoted(to[r.Value], old[at+a])})
+			changed[r.Line] = true
+		}
+		for line := range changed {
+			if note != "" && !changed[line-1] {
+				es = append(es, noteLine(old, starts[line-1], note))
+			}
 		}
 		updated, err := relocation.Apply(old, es)
 		if err != nil {
@@ -280,6 +289,22 @@ func edits(refs []plugincontract.Reference, to map[string]string) ([]hostfile.Ch
 		out = append(out, hostfile.Change{Path: f, Old: old, New: updated})
 	}
 	return out, nil
+}
+
+// noteLine puts note on a line of its own above the line starting at at,
+// indented as that line is and ending as it does. Apache reads `#` as a
+// comment only at the start of a line, so a note cannot follow the directive
+// as it does in nginx.
+func noteLine(b []byte, at int, note string) relocation.Edit {
+	indent := at
+	for indent < len(b) && (b[indent] == ' ' || b[indent] == '\t') {
+		indent++
+	}
+	eol := "\n"
+	if i := strings.IndexByte(string(b[at:]), '\n'); i > 0 && b[at+i-1] == '\r' {
+		eol = "\r\n"
+	}
+	return relocation.Edit{Start: at, End: at, Text: string(b[at:indent]) + "# " + note + eol}
 }
 
 // quoted is a path as an Apache argument replacing one that began with first:

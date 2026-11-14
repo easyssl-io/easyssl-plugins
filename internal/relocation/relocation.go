@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Problem is why a path cannot be written into a configuration.
@@ -111,3 +114,31 @@ func Apply(content []byte, edits []Edit) ([]byte, error) {
 func Real(path string) (string, error) {
 	return filepath.EvalSymlinks(path)
 }
+
+// maxNote bounds the comment a note becomes: one readable line.
+const maxNote = 200
+
+// Note is a relocate request's note as the text of a configuration comment:
+// its first line only, without control characters, without the backslashes
+// at its end that some configurations read as joining the next line, trimmed
+// and cut to maxNote bytes on a character boundary. The Agent writes it, but
+// it lands in a file a server reads as root, so nothing in it may end the
+// comment or reach the line after.
+func Note(s string) string {
+	s, _, _ = strings.Cut(s, "\n")
+	s, _, _ = strings.Cut(s, "\r")
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	if len(s) > maxNote {
+		s = s[:maxNote]
+		for !utf8.ValidString(s) {
+			s = s[:len(s)-1]
+		}
+	}
+	return strings.TrimSpace(strings.TrimRight(strings.TrimSpace(s), "\\"))
+}
+
