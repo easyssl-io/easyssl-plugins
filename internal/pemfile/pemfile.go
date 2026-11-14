@@ -76,6 +76,36 @@ func LeafAndChain(b []byte) (leaf, chain string) {
 	return leaf, out.String()
 }
 
+// MaxReportedPEM bounds the PEM all of a discover answer's certificates carry
+// together. An Agent reads at most 256 KiB of a Plugin's answer and refuses
+// the whole of a longer one, which stops the host's inventory of that Plugin;
+// the answer's other fields, for as many installation points as one answer
+// reports, take up to about 120 KiB of it, and this leaves the rest a margin.
+const MaxReportedPEM = 96 << 10
+
+// PEMPair is one certificate's leaf and chain as a discover answer carries
+// them, to be emptied in place by Budget.
+type PEMPair struct{ Leaf, Chain *string }
+
+// Budget empties chains, then leaves, from the last pair back, until the PEM
+// of all pairs together is at most max. The fingerprint and names are kept
+// whatever is dropped, so a certificate still matches what easySSL deployed;
+// only its description is lost.
+func Budget(pairs []PEMPair, max int) {
+	total := 0
+	for _, p := range pairs {
+		total += len(*p.Leaf) + len(*p.Chain)
+	}
+	for i := len(pairs) - 1; i >= 0 && total > max; i-- {
+		total -= len(*pairs[i].Chain)
+		*pairs[i].Chain = ""
+	}
+	for i := len(pairs) - 1; i >= 0 && total > max; i-- {
+		total -= len(*pairs[i].Leaf)
+		*pairs[i].Leaf = ""
+	}
+}
+
 // ParseLeaf parses the first block of a Deployment's certificate PEM, which
 // must be a certificate.
 func ParseLeaf(certificatePEM string) (*x509.Certificate, error) {

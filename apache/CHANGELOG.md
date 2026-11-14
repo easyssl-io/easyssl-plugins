@@ -2,6 +2,13 @@
 
 Every release of the `apache` Plugin, newest first, each tagged `apache/v<version>`.
 
+## 0.2.4
+
+Built against `easyssl-contract` 0.2.2. The leaf and chain PEM of all the
+certificates in one answer are kept within 96 KiB, dropping chains and then
+leaves from the last certificate back, so a host with many certificates no
+longer sends an answer an Agent refuses for its size.
+
 ## 0.2.3
 
 Built against `easyssl-contract` 0.2.2. A discovered certificate now carries

@@ -645,12 +645,26 @@ func analyze(masters []*master, read configReader) ([]DiscoveredTarget, []l10n.T
 		}
 		targets = append(targets, t)
 	}
-	return capped(targets, warnings)
+	targets, warnings = capped(targets, warnings)
+	budgetPEM(targets)
+	return targets, warnings
 }
 
 // capped keeps an answer within the contract's bound on discovered Targets,
 // which the Agent would otherwise refuse whole: the suggested ones first, then
 // the warned, and a warning counting what was left out.
+// budgetPEM keeps the PEM the answer's certificates carry within
+// pemfile.MaxReportedPEM, so an Agent does not refuse the answer for its size.
+func budgetPEM(targets []DiscoveredTarget) {
+	var pairs []pemfile.PEMPair
+	for i := range targets {
+		if c := targets[i].Certificate; c != nil {
+			pairs = append(pairs, pemfile.PEMPair{Leaf: &c.CertificatePem, Chain: &c.ChainPem})
+		}
+	}
+	pemfile.Budget(pairs, pemfile.MaxReportedPEM)
+}
+
 func capped(targets []DiscoveredTarget, warnings []l10n.Text) ([]DiscoveredTarget, []l10n.Text) {
 	if len(targets) <= plugincontract.MaxDiscoveredTargets {
 		return targets, warnings
